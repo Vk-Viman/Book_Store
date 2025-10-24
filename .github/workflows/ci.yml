@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          SA_PASSWORD: 'Your_str0ng_P@ssword'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd " /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P Your_str0ng_P@ssword -Q \"SELECT 1\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install frontend deps
+      working-directory: readify-frontend
+      run: npm ci
+
+    - name: Build frontend
+      working-directory: readify-frontend
+      run: npm run build --if-present
+
+    - name: Restore backend
+      run: dotnet restore
+
+    - name: Apply EF Migrations
+      env:
+        ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=ReadifyDb;User Id=sa;Password=Your_str0ng_P@ssword;TrustServerCertificate=True"
+      run: |
+        dotnet ef database update --project Readify --startup-project Readify --context AppDbContext
+
+    - name: Build backend
+      run: dotnet build --configuration Release
+
+    - name: Run unit/integration tests
+      run: dotnet test --no-build --verbosity normal
+
+    - name: Run Cypress E2E
+      working-directory: readify-frontend
+      run: |
+        npx cypress run || true

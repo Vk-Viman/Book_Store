@@ -1,0 +1,6 @@
+@Readify_HostAddress = http://localhost:5005
+
+GET {{Readify_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
