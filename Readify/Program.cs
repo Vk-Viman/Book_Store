@@ -27,6 +27,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Register HttpClient factory for outbound HTTP calls (image validation)
 builder.Services.AddHttpClient();
 
+// Mapping service
+builder.Services.AddSingleton<IMappingService, MappingService>();
+
 // Jwt helper
 builder.Services.AddSingleton<JwtHelper>();
 
@@ -88,3 +91,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Expose Program for test projects that use WebApplicationFactory<Program>
+public partial class Program { }

@@ -12,6 +12,8 @@ namespace Readify.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Category> Categories { get; set; }
+        // Alias for readability: treat products as books in the app domain
+        public DbSet<Product> Books => Products;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

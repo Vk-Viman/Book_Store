@@ -56,9 +56,9 @@ export class LoginComponent {
           this.auth.setSession(token, refresh, role);
         }
         this.loading = false;
-        // navigate then reload to ensure route/standalone components initialize with auth state
+        // navigate without forcing a full reload; AuthService observables update the UI
         const target = this.returnUrl && this.returnUrl !== '/home' ? this.returnUrl : '/books';
-        this.router.navigateByUrl(target).then(() => window.location.reload());
+        this.router.navigateByUrl(target);
       },
       error: (err) => {
         this.error = err?.error?.message || 'Invalid email or password';

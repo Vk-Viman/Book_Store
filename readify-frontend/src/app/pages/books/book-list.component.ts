@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { BookService } from '../../services/book.service';
 import { ProductService } from '../../services/product.service';
 
 @Component({
@@ -61,7 +62,7 @@ export class BookListComponent {
   totalPages = 1;
   selectedCategoryId: number | null = null;
 
-  constructor(private productService: ProductService, private route: ActivatedRoute, private router: Router) {
+  constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router) {
     // react to route param changes (e.g., /categories/:id)
     this.route.paramMap.subscribe(pm => {
       const cat = pm.get('id');
@@ -91,7 +92,7 @@ export class BookListComponent {
   }
 
   load() {
-    this.productService.getProducts({ q: this.q, categoryId: this.selectedCategoryId ?? undefined, page: this.page, pageSize: this.pageSize }).subscribe({
+    this.bookService.getBooks({ q: this.q, categoryId: this.selectedCategoryId ?? undefined, page: this.page, pageSize: this.pageSize }).subscribe({
       next: (res: any) => {
         this.products = res.items;
         this.totalPages = res.totalPages;
