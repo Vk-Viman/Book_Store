@@ -1,6 +1,138 @@
 /* You can add global styles to this file, and also import other style files */
 /* Global styles */
+
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$readify-primary: mat.define-palette(mat.$indigo-palette);
+$readify-accent: mat.define-palette(mat.$pink-palette, A200, A100, A400);
+$readify-warn: mat.define-palette(mat.$red-palette);
+
+$readify-theme: mat.define-light-theme((
+  color: (
+    primary: $readify-primary,
+    accent: $readify-accent,
+    warn: $readify-warn,
+  )
+));
+
+@include mat.all-component-themes($readify-theme);
+
+/* Bootstrap import after Material to allow overrides */
 @import 'bootstrap/dist/css/bootstrap.min.css';
+
+/* Custom theme variables */
+:root {
+  --primary-color: #3f51b5;
+  --accent-color: #ff4081;
+  --background-color: #fafafa;
+  --surface-color: #ffffff;
+  --text-primary: #212121;
+  --text-secondary: #757575;
+  --border-color: #e0e0e0;
+  --success-color: #4caf50;
+  --warning-color: #ff9800;
+  --error-color: #f44336;
+}
+
+/* Global styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-primary);
+}
+
+/* Card hover effect */
+.mat-mdc-card {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.mat-mdc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Loading skeleton animation */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 0px, #e0e0e0 40px, #f0f0f0 80px);
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.2s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text {
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+.skeleton-title {
+  height: 24px;
+  margin-bottom: 12px;
+}
+
+.skeleton-image {
+  height: 200px;
+  width: 100%;
+}
+
+/* Accessibility improvements */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+/* Image lazy load placeholder */
+img[loading="lazy"] {
+  background: #f0f0f0;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
 
 .navbar-toggler {
   border: 1px solid rgba(0,0,0,.1);

@@ -1,28 +1,42 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
-  <div class="container">
-    <a class="navbar-brand" routerLink="/books">Readify</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" routerLink="/books" routerLinkActive="active">Books</a></li>
-        <li class="nav-item" *ngIf="(isAdmin$ | async)"><a class="nav-link" routerLink="/admin/products" routerLinkActive="active">Admin</a></li>
-      </ul>
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item" *ngIf="!(loggedIn$ | async)"><a class="nav-link" routerLink="/login">Login</a></li>
-        <li class="nav-item" *ngIf="!(loggedIn$ | async)"><a class="nav-link" routerLink="/register">Register</a></li>
-        <li class="nav-item dropdown" *ngIf="(loggedIn$ | async)">
-          <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">Account</a>
-          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
-            <li><a class="dropdown-item" routerLink="/profile">Profile</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" (click)="logout()">Logout</a></li>
-          </ul>
-        </li>
-      </ul>
+<mat-toolbar color="primary">
+  <div class="container d-flex align-items-center">
+    <a mat-button routerLink="/books" class="navbar-brand text-white">
+      <mat-icon>book</mat-icon>
+      Readify
+    </a>
+    <span class="spacer"></span>
+    <nav class="d-none d-md-flex">
+      <a mat-button routerLink="/books" routerLinkActive="active" class="text-white">
+        <mat-icon>library_books</mat-icon>
+        Books
+      </a>
+      <a mat-button routerLink="/admin/products" routerLinkActive="active" *ngIf="(isAdmin$ | async)" class="text-white">
+        <mat-icon>admin_panel_settings</mat-icon>
+        Admin
+      </a>
+    </nav>
+    <span class="spacer"></span>
+    <div *ngIf="!(loggedIn$ | async)">
+      <a mat-button routerLink="/login" class="text-white">Login</a>
+      <a mat-raised-button color="accent" routerLink="/register">Register</a>
+    </div>
+    <div *ngIf="(loggedIn$ | async)">
+      <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Account menu" class="text-white">
+        <mat-icon>account_circle</mat-icon>
+      </button>
+      <mat-menu #menu="matMenu">
+        <button mat-menu-item routerLink="/profile">
+          <mat-icon>person</mat-icon>
+          <span>Profile</span>
+        </button>
+        <mat-divider></mat-divider>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </mat-menu>
     </div>
   </div>
-</nav>
+</mat-toolbar>
 
 <router-outlet></router-outlet>
