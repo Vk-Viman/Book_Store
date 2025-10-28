@@ -10,10 +10,21 @@
         <mat-icon>library_books</mat-icon>
         Books
       </a>
-      <a mat-button routerLink="/admin/products" routerLinkActive="active" *ngIf="(isAdmin$ | async)" class="text-white">
+      <a mat-button [matMenuTriggerFor]="adminMenu" *ngIf="(isAdmin$ | async)" class="text-white">
         <mat-icon>admin_panel_settings</mat-icon>
         Admin
+        <mat-icon>arrow_drop_down</mat-icon>
       </a>
+      <mat-menu #adminMenu="matMenu">
+        <a mat-menu-item routerLink="/admin/dashboard">
+          <mat-icon>dashboard</mat-icon>
+          <span>Dashboard</span>
+        </a>
+        <a mat-menu-item routerLink="/admin/products">
+          <mat-icon>inventory_2</mat-icon>
+          <span>Products</span>
+        </a>
+      </mat-menu>
     </nav>
     <span class="spacer"></span>
     <div *ngIf="!(loggedIn$ | async)">

@@ -1,0 +1,149 @@
+<div class="container mt-4">
+  <!-- Filters Section -->
+  <mat-card class="filter-card mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <mat-form-field appearance="outline" class="w-100">
+          <mat-label>Search books</mat-label>
+          <input matInput [(ngModel)]="q" (keyup.enter)="applyFilters()" placeholder="Search by title, author..." />
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ priceRangeLabel }}</label>
+        <mat-slider min="0" max="100" step="1" class="w-100">
+          <input matSliderStartThumb [(ngModel)]="minPrice" (ngModelChange)="onPriceChange()" />
+          <input matSliderEndThumb [(ngModel)]="maxPrice" (ngModelChange)="onPriceChange()" />
+        </mat-slider>
+      </div>
+      <div class="col-md-3">
+        <mat-form-field appearance="outline" class="w-100">
+          <mat-label>Sort by</mat-label>
+          <mat-select [(ngModel)]="sort" (selectionChange)="applyFilters()">
+            <mat-option value="">Title (A → Z)</mat-option>
+            <mat-option value="title_desc">Title (Z → A)</mat-option>
+            <mat-option value="price_asc">Price: Low to High</mat-option>
+            <mat-option value="price_desc">Price: High to Low</mat-option>
+            <mat-option value="newest">Newest First</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="col-md-1">
+        <button mat-raised-button color="warn" (click)="clearFilters()" *ngIf="hasActiveFilters()">
+          <mat-icon>clear</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Filters Chips -->
+    <div class="active-filters mt-2" *ngIf="hasActiveFilters()">
+      <mat-chip-set>
+        <mat-chip *ngIf="q" (removed)="q=''; applyFilters()">
+          Search: {{q}}
+          <button matChipRemove><mat-icon>cancel</mat-icon></button>
+        </mat-chip>
+        <mat-chip *ngIf="selectedCategoryId" (removed)="selectCategory(null)">
+          Category: {{getCategoryName(selectedCategoryId)}}
+          <button matChipRemove><mat-icon>cancel</mat-icon></button>
+        </mat-chip>
+        <mat-chip *ngIf="minPrice !== null || maxPrice !== null" (removed)="minPrice=null; maxPrice=null; applyFilters()">
+          {{ priceChipLabel }}
+          <button matChipRemove><mat-icon>cancel</mat-icon></button>
+        </mat-chip>
+      </mat-chip-set>
+    </div>
+  </mat-card>
+
+  <div class="row">
+    <!-- Categories Sidebar -->
+    <div class="col-md-3">
+      <mat-card>
+        <h5 class="mb-3">Categories</h5>
+        <div class="list-group list-group-flush">
+          <button 
+            mat-button 
+            class="list-group-item list-group-item-action text-start" 
+            [class.active]="!selectedCategoryId" 
+            (click)="selectCategory(null)"
+            [attr.aria-pressed]="!selectedCategoryId">
+            All Books
+          </button>
+          <button 
+            *ngFor="let c of categories" 
+            mat-button
+            class="list-group-item list-group-item-action text-start" 
+            [class.active]="c.id===selectedCategoryId" 
+            (click)="selectCategory(c.id)"
+            [attr.aria-pressed]="c.id===selectedCategoryId">
+            {{ c.name }}
+          </button>
+        </div>
+      </mat-card>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="col-md-9">
+      <!-- Loading State -->
+      <div *ngIf="loading" class="row">
+        <div class="col-md-4 mb-3" *ngFor="let i of [1,2,3,4,5,6]">
+          <app-loading-skeleton type="card"></app-loading-skeleton>
+        </div>
+      </div>
+
+      <!-- Products -->
+      <div *ngIf="!loading && products.length > 0" class="row">
+        <div *ngFor="let p of products" class="col-md-4 mb-4">
+          <mat-card class="h-100 product-card">
+            <img 
+              mat-card-image 
+              [src]="p.imageUrl || 'assets/book-placeholder.svg'" 
+              (error)="onImgError($event)" 
+              [alt]="p.title"
+              loading="lazy"
+              class="product-image">
+            <mat-card-header>
+              <mat-card-title>{{ p.title }}</mat-card-title>
+              <mat-card-subtitle>{{ p.authors }}</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <p class="price-tag">{{ p.price | currency }}</p>
+              <p class="stock-info" *ngIf="p.stockQty > 0">In Stock: {{ p.stockQty }}</p>
+              <p class="stock-info text-danger" *ngIf="p.stockQty === 0">Out of Stock</p>
+            </mat-card-content>
+            <mat-card-actions align="end">
+              <a mat-raised-button color="primary" [routerLink]="['/books', p.id]" [attr.aria-label]="'View details for ' + p.title">
+                View Details
+              </a>
+            </mat-card-actions>
+          </mat-card>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="!loading && products.length === 0" class="text-center py-5">
+        <mat-icon style="font-size: 64px; height: 64px; width: 64px; color: #ccc;">book</mat-icon>
+        <h3 class="mt-3">No books found</h3>
+        <p class="text-muted">Try adjusting your filters or search terms</p>
+        <button mat-raised-button color="primary" (click)="clearFilters()">Clear Filters</button>
+      </div>
+
+      <!-- Pagination -->
+      <nav *ngIf="!loading && products.length > 0" aria-label="Product pagination">
+        <ul class="pagination justify-content-center">
+          <li class="page-item" [class.disabled]="page<=1">
+            <button class="page-link" (click)="goto(page-1)" [disabled]="page<=1" aria-label="Previous page">Previous</button>
+          </li>
+          <li *ngFor="let p of visiblePages" class="page-item" [class.active]="p===page">
+            <button class="page-link" (click)="goto(p)" [attr.aria-current]="p===page ? 'page' : null">{{p}}</button>
+          </li>
+          <li class="page-item" [class.disabled]="page>=totalPages">
+            <button class="page-link" (click)="goto(page+1)" [disabled]="page>=totalPages" aria-label="Next page">Next</button>
+          </li>
+        </ul>
+        <div class="text-center text-muted mt-2" role="status" aria-live="polite">
+          Page {{page}} of {{totalPages}} ({{total}} books total)
+        </div>
+      </nav>
+    </div>
+  </div>
+</div>

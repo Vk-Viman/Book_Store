@@ -14,10 +14,11 @@ export const routes: Routes = [
   { path: 'reset-password/:token', loadComponent: () => import('./pages/reset-password/reset-password.component').then(m => m.ResetPasswordComponent) },
   { path: 'home', loadComponent: () => import('./pages/home/home-redirect.component').then(m => m.HomeRedirectComponent), canActivate: [authGuard] },
   { path: 'user/home', redirectTo: 'books', pathMatch: 'full' },
-  { path: 'admin/home', redirectTo: 'admin/products', pathMatch: 'full' },
+  { path: 'admin/home', redirectTo: 'admin/dashboard', pathMatch: 'full' },
   { path: 'profile', loadComponent: () => import('./pages/profile/profile.component').then(m => m.ProfileComponent), canActivate: [authGuard] },
 
   // Admin area
+  { path: 'admin/dashboard', loadComponent: () => import('./pages/admin/admin-dashboard.component').then(m => m.AdminDashboardComponent), canActivate: [authGuard] },
   { path: 'admin/products', loadComponent: () => import('./pages/admin/product-list.component').then(m => m.AdminProductListComponent), canActivate: [authGuard] },
   { path: 'admin/products/new', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [authGuard] },
   { path: 'admin/products/:id', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [authGuard] },
