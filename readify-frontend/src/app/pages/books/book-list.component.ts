@@ -95,6 +95,8 @@ export class BookListComponent {
       const cat = pm.get('id');
       this.selectedCategoryId = cat ? Number(cat) : null;
       this.page = 1;
+      // ensure we reload when category route param changes
+      this.load();
     });
     this.route.queryParamMap.subscribe(qp => {
       this.q = qp.get('q') ?? '';
@@ -216,6 +218,7 @@ export class BookListComponent {
 
   selectCategory(id: number | null) {
     this.selectedCategoryId = id;
+    this.page = 1;
     const query: any = { 
       q: this.q || undefined, 
       page: 1, 
@@ -224,14 +227,15 @@ export class BookListComponent {
       sort: this.sort || undefined 
     };
     if (id) {
-      this.router.navigate(['/categories', id], { queryParams: query });
+      this.router.navigate(['/categories', id], { queryParams: query }).then(() => this.load());
     } else {
-      this.router.navigate(['/books'], { queryParams: query });
+      this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
     }
   }
 
   goto(p: number) {
     if (p < 1 || p > this.totalPages) return;
+    this.page = p;
     const query: any = { 
       q: this.q || undefined, 
       page: p, 
@@ -240,9 +244,9 @@ export class BookListComponent {
       sort: this.sort || undefined 
     };
     if (this.selectedCategoryId) {
-      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
+      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query }).then(() => this.load());
     } else {
-      this.router.navigate(['/books'], { queryParams: query });
+      this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
     }
   }
 }
