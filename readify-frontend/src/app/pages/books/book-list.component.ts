@@ -84,8 +84,9 @@ export class BookListComponent {
   totalPages = 1;
   total = 0;
   selectedCategoryId: number | null = null;
-  minPrice: number | null = null;
-  maxPrice: number | null = null;
+  // default slider bounds (0-100)
+  minPrice: number = 0;
+  maxPrice: number = 100;
   sort: string = '';
   loading = false;
   private priceDebounce: any;
@@ -101,8 +102,9 @@ export class BookListComponent {
     this.route.queryParamMap.subscribe(qp => {
       this.q = qp.get('q') ?? '';
       this.page = Number(qp.get('page') ?? 1);
-      this.minPrice = qp.get('minPrice') ? Number(qp.get('minPrice')) : null;
-      this.maxPrice = qp.get('maxPrice') ? Number(qp.get('maxPrice')) : null;
+      // read numeric params; if missing, keep defaults
+      this.minPrice = qp.has('minPrice') ? Number(qp.get('minPrice')) : 0;
+      this.maxPrice = qp.has('maxPrice') ? Number(qp.get('maxPrice')) : 100;
       this.sort = qp.get('sort') ?? '';
       this.load();
     });
@@ -123,29 +125,9 @@ export class BookListComponent {
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }
 
-  get priceMin(): number {
-    return this.minPrice ?? 0;
-  }
-
-  get priceMax(): number {
-    return this.maxPrice ?? 100;
-  }
-
-  get priceRangeLabel(): string {
-    return `Price Range: $${this.priceMin} - $${this.priceMax}`;
-  }
-
-  get priceChipLabel(): string {
-    return `Price: $${this.priceMin} - $${this.priceMax}`;
-  }
-
-  onImgError(event: Event) {
-    const img = event?.target as HTMLImageElement | null;
-    if (img) img.src = 'assets/book-placeholder.svg';
-  }
-
   hasActiveFilters(): boolean {
-    return !!(this.q || this.selectedCategoryId || this.minPrice !== null || this.maxPrice !== null);
+    // treat default range as no filter
+    return !!(this.q || this.selectedCategoryId || this.minPrice !== 0 || this.maxPrice !== 100);
   }
 
   getCategoryName(id: number): string {
@@ -161,8 +143,8 @@ export class BookListComponent {
 
   clearFilters() {
     this.q = '';
-    this.minPrice = null;
-    this.maxPrice = null;
+    this.minPrice = 0;
+    this.maxPrice = 100;
     this.sort = '';
     this.selectCategory(null);
   }
@@ -171,14 +153,15 @@ export class BookListComponent {
     const query: any = { 
       q: this.q || undefined, 
       page: 1, 
-      minPrice: this.minPrice || undefined, 
-      maxPrice: this.maxPrice || undefined, 
-      sort: this.sort || undefined 
+      sort: this.sort || undefined
     };
+    if (this.minPrice !== 0) query.minPrice = this.minPrice;
+    if (this.maxPrice !== 100) query.maxPrice = this.maxPrice;
+
     if (this.selectedCategoryId) {
-      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
+      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query }).then(() => this.load());
     } else {
-      this.router.navigate(['/books'], { queryParams: query });
+      this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
     }
   }
 
@@ -248,5 +231,40 @@ export class BookListComponent {
     } else {
       this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
     }
+  }
+
+  // Add new handler in component
+  onRangeInput(event: Event, which: 'min' | 'max') {
+    const input = event.target as HTMLInputElement;
+    const val = Number(input.value);
+    if (which === 'min') {
+      this.minPrice = Math.min(val, this.maxPrice);
+    } else {
+      this.maxPrice = Math.max(val, this.minPrice);
+    }
+    // debounce apply
+    clearTimeout(this.priceDebounce);
+    this.priceDebounce = setTimeout(() => this.applyFilters(), 300);
+  }
+
+  get priceMin(): number {
+    return this.minPrice ?? 0;
+  }
+
+  get priceMax(): number {
+    return this.maxPrice ?? 100;
+  }
+
+  get priceRangeLabel(): string {
+    return `Price Range: $${this.priceMin} - $${this.priceMax}`;
+  }
+
+  get priceChipLabel(): string {
+    return `Price: $${this.priceMin} - $${this.priceMax}`;
+  }
+
+  onImgError(event: Event) {
+    const img = event?.target as HTMLImageElement | null;
+    if (img) img.src = 'assets/book-placeholder.svg';
   }
 }
