@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -9,6 +9,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { NotificationService } from './services/notification.service';
 import { AuthService } from './services/auth.service';
 import { Observable } from 'rxjs';
+import { CartService } from './services/cart.service';
 
 @Component({
   selector: 'app-root',
@@ -56,6 +57,14 @@ import { Observable } from 'rxjs';
       background-color: rgba(255, 255, 255, 0.1);
       border-radius: 4px;
     }
+    .cart-badge {
+      background: var(--error-color);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      margin-left: 8px;
+    }
     @media (max-width: 767px) {
       .nav-label {
         display: none;
@@ -66,13 +75,20 @@ import { Observable } from 'rxjs';
     }
   `]
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   notify = inject(NotificationService);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private cart = inject(CartService);
 
   loggedIn$: Observable<boolean> = this.auth.isLoggedIn();
   isAdmin$: Observable<boolean> = this.auth.isAdmin$();
+  cartCount$ = this.cart.cartCount$;
+
+  ngOnInit(): void {
+    // refresh cart count when app initializes
+    this.cart.refreshCount();
+  }
 
   logout() {
     this.auth.logout();

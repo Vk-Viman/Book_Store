@@ -117,7 +117,7 @@
 
       <!-- Products -->
       <div *ngIf="!loading && products.length > 0" class="row">
-        <div *ngFor="let p of products" class="col-md-4 mb-4">
+        <div class="col-md-4 mb-4" *ngFor="let p of products">
           <mat-card class="h-100 product-card">
             <img 
               mat-card-image 
@@ -139,6 +139,10 @@
               <a mat-raised-button color="primary" [routerLink]="['/books', p.id]" [attr.aria-label]="'View details for ' + p.title">
                 View Details
               </a>
+              <button mat-stroked-button color="accent" (click)="addToCart(p)" [disabled]="p.stockQty===0" class="ms-2">
+                <mat-icon>shopping_cart</mat-icon>
+                Add to Cart
+              </button>
             </mat-card-actions>
           </mat-card>
         </div>

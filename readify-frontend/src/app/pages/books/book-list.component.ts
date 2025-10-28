@@ -14,6 +14,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BookService } from '../../services/book.service';
 import { ProductService } from '../../services/product.service';
 import { LoadingSkeletonComponent } from '../../components/loading-skeleton.component';
+import { CartService } from '../../services/cart.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-book-list',
@@ -91,7 +93,7 @@ export class BookListComponent {
   loading = false;
   private priceDebounce: any;
 
-  constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router) {
+  constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router, private cart: CartService, private notify: NotificationService) {
     this.route.paramMap.subscribe(pm => {
       const cat = pm.get('id');
       this.selectedCategoryId = cat ? Number(cat) : null;
@@ -284,5 +286,17 @@ export class BookListComponent {
     } else {
       this.router.navigate(['/books'], { queryParams: query });
     }
+  }
+
+  addToCart(product: any) {
+    if (!product) return;
+    this.cart.addToCart(product.id).subscribe({
+      next: () => {
+        this.notify.success(`${product.title} added to cart`);
+      },
+      error: () => {
+        this.notify.error('Failed to add to cart');
+      }
+    });
   }
 }

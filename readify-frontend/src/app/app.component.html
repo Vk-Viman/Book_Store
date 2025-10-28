@@ -12,6 +12,11 @@
         <mat-icon>library_books</mat-icon>
         <span class="nav-label">Books</span>
       </a>
+      <a mat-button routerLink="/cart" routerLinkActive="" class="text-white">
+        <mat-icon>shopping_cart</mat-icon>
+        <span class="nav-label">Cart</span>
+        <span class="cart-badge" *ngIf="(cartCount$ | async) as c && c>0">{{c}}</span>
+      </a>
       <button mat-button [matMenuTriggerFor]="adminMenu" *ngIf="(isAdmin$ | async)" class="text-white">
         <mat-icon>admin_panel_settings</mat-icon>
         <span class="nav-label">Admin</span>
@@ -61,6 +66,11 @@
       <a mat-menu-item routerLink="/books">
         <mat-icon>library_books</mat-icon>
         <span>Books</span>
+      </a>
+      <a mat-menu-item routerLink="/cart">
+        <mat-icon>shopping_cart</mat-icon>
+        <span>Cart</span>
+        <span class="cart-badge" *ngIf="(cartCount$ | async) as c && c>0">{{c}}</span>
       </a>
       <div *ngIf="(isAdmin$ | async)">
         <mat-divider></mat-divider>

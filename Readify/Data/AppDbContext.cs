@@ -15,11 +15,16 @@ namespace Readify.Data
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<EmailLog> EmailLogs { get; set; }
         public DbSet<UserProfileUpdate> UserProfileUpdates { get; set; }
+        public DbSet<CartItem> CartItems { get; set; }
+        public DbSet<Order> Orders { get; set; }
+        public DbSet<OrderItem> OrderItems { get; set; }
         // Alias for readability: treat products as books in the app domain
         public DbSet<Product> Books => Products;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
             modelBuilder.Entity<Category>()
                 .HasMany(c => c.Children)
                 .WithOne(c => c.Parent)
@@ -41,6 +46,18 @@ namespace Readify.Data
                 .HasIndex(p => p.CategoryId);
             modelBuilder.Entity<Product>()
                 .HasIndex(p => p.Price);
+
+            modelBuilder.Entity<Order>()
+                .HasMany(o => o.Items)
+                .WithOne()
+                .HasForeignKey(i => i.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CartItem>()
+                .HasOne(c => c.Product)
+                .WithMany()
+                .HasForeignKey(c => c.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

@@ -146,6 +146,26 @@ END
                 await context.SaveChangesAsync();
                 logger.LogInformation("Seeded sample products.");
             }
+
+            // Seed cart items for demo user (optional)
+            try
+            {
+                var demoUser = await context.Users.FirstOrDefaultAsync(u => u.Email == (config["Seed:UserEmail"] ?? "user@demo.com"));
+                if (demoUser != null && !await context.CartItems.AnyAsync(c => c.UserId == demoUser.Id))
+                {
+                    var sampleProduct = await context.Products.OrderBy(p => p.Id).FirstOrDefaultAsync();
+                    if (sampleProduct != null)
+                    {
+                        context.CartItems.Add(new CartItem { UserId = demoUser.Id, ProductId = sampleProduct.Id, Quantity = 1 });
+                        await context.SaveChangesAsync();
+                        logger.LogInformation("Seeded sample cart item for demo user.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to seed demo cart items.");
+            }
         }
         catch (Exception ex)
         {

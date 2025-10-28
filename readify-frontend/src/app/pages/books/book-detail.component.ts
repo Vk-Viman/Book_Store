@@ -7,6 +7,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ProductService } from '../../services/product.service';
+import { CartService } from '../../services/cart.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-book-detail',
@@ -104,7 +106,7 @@ import { ProductService } from '../../services/product.service';
           </mat-card-content>
 
           <mat-card-actions class="action-buttons">
-            <button mat-raised-button color="primary" [disabled]="product.stockQty === 0" class="me-2">
+            <button mat-raised-button color="primary" [disabled]="product.stockQty === 0" class="me-2" (click)="addToCart()">
               <mat-icon>shopping_cart</mat-icon>
               Add to Cart
             </button>
@@ -246,7 +248,9 @@ export class BookDetailComponent {
   constructor(
     private route: ActivatedRoute, 
     private router: Router,
-    private productService: ProductService
+    private productService: ProductService,
+    private cart: CartService,
+    private notify: NotificationService
   ) {
     this.id = Number(this.route.snapshot.paramMap.get('id'));
     if (this.id) this.load();
@@ -269,6 +273,18 @@ export class BookDetailComponent {
         console.error('Failed to load product', err);
         this.error = 'Failed to load book details. Please try again later.';
         this.loading = false;
+      }
+    });
+  }
+
+  addToCart() {
+    if (!this.product) return;
+    this.cart.addToCart(this.product.id).subscribe({
+      next: () => {
+        this.notify.success(`${this.product.title} added to cart`);
+      },
+      error: () => {
+        this.notify.error('Failed to add to cart');
       }
     });
   }
