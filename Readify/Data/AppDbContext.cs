@@ -40,6 +40,15 @@ namespace Readify.Data
                 .Property(p => p.Price)
                 .HasColumnType("decimal(18,2)");
 
+            // Ensure order decimal precision
+            modelBuilder.Entity<Order>()
+                .Property(o => o.TotalAmount)
+                .HasPrecision(18,2);
+
+            modelBuilder.Entity<OrderItem>()
+                .Property(i => i.UnitPrice)
+                .HasPrecision(18,2);
+
             modelBuilder.Entity<Product>()
                 .HasIndex(p => p.Title);
             modelBuilder.Entity<Product>()

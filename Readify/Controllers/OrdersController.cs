@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Readify.Data;
 using Readify.Models;
+using Readify.Services;
 
 namespace Readify.Controllers;
 
@@ -12,8 +13,9 @@ namespace Readify.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IEmailService _email;
 
-    public OrdersController(AppDbContext context) => _context = context;
+    public OrdersController(AppDbContext context, IEmailService email) => (_context, _email) = (context, email);
 
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout()
@@ -40,6 +42,16 @@ public class OrdersController : ControllerBase
         _context.Orders.Add(order);
         _context.CartItems.RemoveRange(cartItems);
         await _context.SaveChangesAsync();
+
+        // send confirmation via logging email (non-blocking)
+        try
+        {
+            _ = _email.SendTemplateAsync((await _context.Users.FindAsync(userId))?.Email ?? string.Empty, "OrderConfirmation", new { OrderId = order.Id });
+        }
+        catch
+        {
+            // ignore
+        }
 
         return Ok(order);
     }

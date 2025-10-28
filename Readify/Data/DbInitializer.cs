@@ -94,6 +94,53 @@ BEGIN
 END
 ";
             await context.Database.ExecuteSqlRawAsync(createUserProfileSql);
+
+            // Ensure cart and order related tables exist
+            var createCartSql = @"
+IF OBJECT_ID(N'[dbo].[CartItems]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[CartItems](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] INT NOT NULL,
+        [ProductId] INT NOT NULL,
+        [Quantity] INT NOT NULL,
+        CONSTRAINT FK_CartItems_Products FOREIGN KEY (ProductId) REFERENCES [Product](Id)
+    );
+END
+";
+            await context.Database.ExecuteSqlRawAsync(createCartSql);
+
+            var createOrdersSql = @"
+IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Orders](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] INT NOT NULL,
+        [OrderDate] DATETIME2 NOT NULL,
+        [TotalAmount] DECIMAL(18,2) NOT NULL,
+        [Status] NVARCHAR(100) NOT NULL
+    );
+END
+";
+            await context.Database.ExecuteSqlRawAsync(createOrdersSql);
+
+            var createOrderItemsSql = @"
+IF OBJECT_ID(N'[dbo].[OrderItems]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[OrderItems](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [OrderId] INT NOT NULL,
+        [ProductId] INT NOT NULL,
+        [Quantity] INT NOT NULL,
+        [UnitPrice] DECIMAL(18,2) NOT NULL,
+        CONSTRAINT FK_OrderItems_Orders FOREIGN KEY (OrderId) REFERENCES [Orders](Id),
+        CONSTRAINT FK_OrderItems_Products FOREIGN KEY (ProductId) REFERENCES [Product](Id)
+    );
+END
+";
+            await context.Database.ExecuteSqlRawAsync(createOrderItemsSql);
+
+            logger.LogInformation("Ensured CartItems, Orders and OrderItems tables exist.");
         }
         catch (Exception ex)
         {

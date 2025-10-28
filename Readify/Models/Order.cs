@@ -8,5 +8,6 @@ public class Order
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "Pending";
 
-    public List<OrderItem>? Items { get; set; }
+    // Initialize to avoid nullability issues in EF Include/ThenInclude
+    public List<OrderItem> Items { get; set; } = new List<OrderItem>();
 }

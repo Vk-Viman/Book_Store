@@ -15,7 +15,9 @@
       <a mat-button routerLink="/cart" routerLinkActive="" class="text-white">
         <mat-icon>shopping_cart</mat-icon>
         <span class="nav-label">Cart</span>
-        <span class="cart-badge" *ngIf="(cartCount$ | async) as c && c>0">{{c}}</span>
+        <ng-container *ngIf="(cartCount$ | async) as c">
+          <span class="cart-badge" *ngIf="c > 0">{{c}}</span>
+        </ng-container>
       </a>
       <button mat-button [matMenuTriggerFor]="adminMenu" *ngIf="(isAdmin$ | async)" class="text-white">
         <mat-icon>admin_panel_settings</mat-icon>
@@ -70,7 +72,9 @@
       <a mat-menu-item routerLink="/cart">
         <mat-icon>shopping_cart</mat-icon>
         <span>Cart</span>
-        <span class="cart-badge" *ngIf="(cartCount$ | async) as c && c>0">{{c}}</span>
+        <ng-container *ngIf="(cartCount$ | async) as cMobile">
+          <span class="cart-badge" *ngIf="cMobile > 0">{{cMobile}}</span>
+        </ng-container>
       </a>
       <div *ngIf="(isAdmin$ | async)">
         <mat-divider></mat-divider>
