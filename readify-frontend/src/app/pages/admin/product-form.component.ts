@@ -5,6 +5,8 @@ import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ProductService } from '../../services/product.service';
+import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-admin-product-form',
@@ -21,7 +23,7 @@ import { ProductService } from '../../services/product.service';
           <div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Validating...</span></div>
         </div>
       </div>
-      <small class="text-muted">Image preview (must be a direct image URL)</small>
+      <small class="text-muted">Image preview</small>
       <div *ngIf="errorMsg" class="alert alert-danger mt-2">{{ errorMsg }}</div>
       <div *ngIf="validationInfo" class="alert alert-info mt-2">{{ validationInfo }}</div>
     </div>
@@ -63,8 +65,14 @@ import { ProductService } from '../../services/product.service';
 
       <div class="mb-3">
         <label>Image URL</label>
-        <input class="form-control" formControlName="imageUrl" />
+        <input class="form-control" formControlName="imageUrl" (input)="onImageUrlChange()" />
       </div>
+
+      <div class="mb-3">
+        <label>Or upload image</label>
+        <input type="file" class="form-control" (change)="onFileSelected($event)" accept="image/*" />
+      </div>
+
       <button class="btn btn-primary" [disabled]="form.invalid || saving || validating">{{ saving ? 'Saving...' : 'Save' }}</button>
     </form>
   </div>
@@ -91,7 +99,7 @@ export class AdminProductFormComponent {
 
   isNew = true;
 
-  constructor(private fb: FormBuilder, private prodSvc: ProductService, private http: HttpClient, private route: ActivatedRoute, private router: Router) {
+  constructor(private fb: FormBuilder, private prodSvc: ProductService, private http: HttpClient, private route: ActivatedRoute, private router: Router, private notify: NotificationService) {
     this.form = this.fb.group({
       id: [0],
       title: ['', Validators.required],
@@ -119,11 +127,23 @@ export class AdminProductFormComponent {
     this.loadCategories();
   }
 
+  private ensureAbsolute(url: string): string {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url)) return url;
+    const apiBase = environment.apiUrl.replace(/\/?api\/?$/i, '');
+    return apiBase + (url.startsWith('/') ? url : '/' + url);
+  }
+
+  onImageUrlChange() {
+    const url = (this.form.value.imageUrl || '').trim();
+    this.previewUrl = this.ensureAbsolute(url) || null;
+  }
+
   load(id: number) {
     this.prodSvc.getProduct(id).subscribe((res: any) => {
       this.form.patchValue(res);
       // set preview to loaded image url
-      this.previewUrl = res?.imageUrl || null;
+      this.previewUrl = this.ensureAbsolute(res?.imageUrl || '');
     });
   }
 
@@ -158,9 +178,44 @@ export class AdminProductFormComponent {
         this.previewUrl = null;
         this.newCategoryName = '';
         this.showNewCategoryInput = false;
+        this.notify.success('Category created');
       },
       error: (err) => {
-        console.error('Failed to create category', err);
+        this.notify.error(err?.error?.message || 'Failed to create category');
+      }
+    });
+  }
+
+  onFileSelected(event: any) {
+    const file: File | undefined = event?.target?.files?.[0];
+    if (!file) return;
+
+    // local preview
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.previewUrl = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+
+    const form = new FormData();
+    form.append('file', file);
+    this.validating = true;
+    this.http.post('/api/upload/image', form).subscribe({
+      next: (res: any) => {
+        this.validating = false;
+        let url = res?.url as string;
+        url = this.ensureAbsolute(url);
+        if (url) {
+          this.form.patchValue({ imageUrl: url });
+          this.previewUrl = url;
+          this.notify.success('Image uploaded');
+        }
+      },
+      error: (err) => {
+        this.validating = false;
+        const msg = err?.error?.message || 'Image upload failed';
+        this.errorMsg = msg;
+        this.notify.error(msg);
       }
     });
   }
@@ -170,9 +225,10 @@ export class AdminProductFormComponent {
       if (!url) return resolve({ ok: true });
 
       this.validating = true;
+      const abs = this.ensureAbsolute(url);
       try {
         // call backend validation endpoint first
-        const resp: any = await this.http.post('/api/admin/image/validate', { url }).toPromise();
+        const resp: any = await this.http.post('/api/admin/image/validate', { url: abs }).toPromise();
         if (resp && resp.ok) {
           this.validating = false;
           return resolve({ ok: true });
@@ -190,7 +246,7 @@ export class AdminProductFormComponent {
       img.onload = () => { if (!settled) { settled = true; this.validating = false; resolve({ ok: true }); } };
       img.onerror = () => { if (!settled) { settled = true; this.validating = false; resolve({ ok: false, message: 'Image did not load in browser' }); } };
       setTimeout(() => { if (!settled) { settled = true; this.validating = false; resolve({ ok: false, message: 'Image validation timed out' }); } }, 5000);
-      img.src = url;
+      img.src = abs;
     });
   }
 
@@ -198,13 +254,14 @@ export class AdminProductFormComponent {
     this.saving = true;
     // trim image url before sending
     const imageUrl = (this.form.value.imageUrl || '').trim();
-    this.form.patchValue({ imageUrl });
+    this.form.patchValue({ imageUrl: this.ensureAbsolute(imageUrl) });
 
     // Validate category selected
     const catId = Number(this.form.value.categoryId) || 0;
     if (catId <= 0) {
       this.errorMsg = 'Please select a valid category before saving.';
       this.saving = false;
+      this.notify.info(this.errorMsg);
       return;
     }
 
@@ -215,6 +272,7 @@ export class AdminProductFormComponent {
       if (!res.ok) {
         this.errorMsg = res.message || 'Image URL did not load as an image.';
         this.saving = false;
+        this.notify.error(this.errorMsg);
         return;
       }
     }
@@ -222,10 +280,10 @@ export class AdminProductFormComponent {
     this.errorMsg = '';
 
     if (this.isNew) {
-      this.prodSvc.createProduct(this.form.value).subscribe(() => this.router.navigate(['/admin/products']), (err) => { this.saving = false; this.errorMsg = err?.error?.message ?? 'Failed to create product'; });
+      this.prodSvc.createProduct(this.form.value).subscribe(() => { this.notify.success('Product created'); this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to create product'; this.errorMsg = msg; this.notify.error(msg); });
     } else {
       const id = this.form.value.id;
-      this.prodSvc.updateProduct(id, this.form.value).subscribe(() => this.router.navigate(['/admin/products']), (err) => { this.saving = false; this.errorMsg = err?.error?.message ?? 'Failed to update product'; });
+      this.prodSvc.updateProduct(id, this.form.value).subscribe(() => { this.notify.success('Product updated'); this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to update product'; this.errorMsg = msg; this.notify.error(msg); });
     }
   }
 }

@@ -28,7 +28,7 @@ public static class DbInitializer
             await context.Database.EnsureCreatedAsync();
         }
 
-        // Ensure PasswordResetTokens table exists in databases created without migrations
+        // Ensure additional tables exist when migrations are not kept in sync
         try
         {
             var createPasswordResetSql = @"
@@ -45,10 +45,59 @@ END
 ";
             await context.Database.ExecuteSqlRawAsync(createPasswordResetSql);
             logger.LogInformation("Ensured PasswordResetTokens table exists.");
+
+            var createAuditSql = @"
+IF OBJECT_ID(N'[dbo].[AuditLogs]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AuditLogs](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] INT NULL,
+        [Action] NVARCHAR(200) NOT NULL,
+        [Entity] NVARCHAR(200) NOT NULL,
+        [EntityId] INT NULL,
+        [Timestamp] DATETIME2 NOT NULL,
+        [Details] NVARCHAR(MAX) NULL
+    );
+END
+";
+            await context.Database.ExecuteSqlRawAsync(createAuditSql);
+
+            var createEmailLogSql = @"
+IF OBJECT_ID(N'[dbo].[EmailLogs]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[EmailLogs](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [To] NVARCHAR(400) NOT NULL,
+        [Subject] NVARCHAR(400) NOT NULL,
+        [Body] NVARCHAR(MAX) NOT NULL,
+        [SentAt] DATETIME2 NOT NULL,
+        [Success] BIT NOT NULL,
+        [Error] NVARCHAR(MAX) NULL,
+        [Provider] NVARCHAR(100) NOT NULL
+    );
+END
+";
+            await context.Database.ExecuteSqlRawAsync(createEmailLogSql);
+
+            var createUserProfileSql = @"
+IF OBJECT_ID(N'[dbo].[UserProfileUpdates]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[UserProfileUpdates](
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] INT NOT NULL,
+        [OldFullName] NVARCHAR(400) NOT NULL,
+        [OldEmail] NVARCHAR(400) NOT NULL,
+        [NewFullName] NVARCHAR(400) NOT NULL,
+        [NewEmail] NVARCHAR(400) NOT NULL,
+        [UpdatedAt] DATETIME2 NOT NULL
+    );
+END
+";
+            await context.Database.ExecuteSqlRawAsync(createUserProfileSql);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to ensure PasswordResetTokens table exists via raw SQL.");
+            logger.LogWarning(ex, "Failed to ensure tables exist via raw SQL.");
         }
 
         var adminEmail = config["Seed:AdminEmail"] ?? "admin@readify.local";

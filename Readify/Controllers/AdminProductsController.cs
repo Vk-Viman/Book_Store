@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Readify.Data;
 using Readify.Models;
+using Readify.Services;
 
 namespace Readify.Controllers
 {
@@ -14,11 +16,17 @@ namespace Readify.Controllers
     {
         private readonly AppDbContext _context;
         private readonly ILogger<AdminProductsController> _logger;
+        private readonly IAuditService _audit;
+        private readonly IEmailService _email;
+        private readonly IConfiguration _config;
 
-        public AdminProductsController(AppDbContext context, ILogger<AdminProductsController> logger)
+        public AdminProductsController(AppDbContext context, ILogger<AdminProductsController> logger, IAuditService audit, IEmailService email, IConfiguration config)
         {
             _context = context;
             _logger = logger;
+            _audit = audit;
+            _email = email;
+            _config = config;
         }
 
         // POST api/admin/products
@@ -43,6 +51,13 @@ namespace Readify.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                await _audit.WriteAsync("Create", nameof(Product), product.Id);
+
+                var adminEmail = _config["Notifications:AdminEmail"] ?? _config["Seed:AdminEmail"]; // fallback
+                if (!string.IsNullOrWhiteSpace(adminEmail))
+                {
+                    _ = _email.SendTemplateAsync(adminEmail, "AdminProductCreated", new { product.Title, product.Id, product.Price, product.StockQty });
+                }
             }
             catch (DbUpdateException dbEx)
             {
@@ -90,6 +105,7 @@ namespace Readify.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                await _audit.WriteAsync("Update", nameof(Product), product.Id);
             }
             catch (DbUpdateException dbEx)
             {
@@ -108,6 +124,7 @@ namespace Readify.Controllers
             if (product == null) return NotFound();
             _context.Products.Remove(product);
             await _context.SaveChangesAsync();
+            await _audit.WriteAsync("Delete", nameof(Product), id);
             return NoContent();
         }
 

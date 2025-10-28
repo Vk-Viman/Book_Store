@@ -52,12 +52,22 @@ namespace Readify.Controllers
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password)
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                return StatusCode(500, new { message = "Failed to create user in database.", detail = ex.Message });
+            }
 
             // Issue tokens
             var token = _jwt.GenerateToken(user);
             var (refreshToken, refreshEntity) = await CreateRefreshTokenAsync(user.Id);
+
+            // Fire-and-forget welcome email (do not block registration)
+            _ = _email.SendTemplateAsync(user.Email, "Welcome", new { user.FullName });
 
             return Ok(new { token, refresh = refreshToken, user.Email, user.FullName, user.Role });
         }

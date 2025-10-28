@@ -11,9 +11,29 @@ import { ProductService } from '../../services/product.service';
   imports: [CommonModule, RouterLink, FormsModule],
   template: `
   <div class="container mt-4">
-    <div class="d-flex mb-3">
-      <input class="form-control me-2" placeholder="Search books..." [(ngModel)]="q" (keyup.enter)="search()" />
-      <button class="btn btn-outline-secondary" (click)="search()">Search</button>
+    <div class="row mb-3 g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Search</label>
+        <input class="form-control" placeholder="Search books..." [(ngModel)]="q" (keyup.enter)="applyFilters()" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Min price</label>
+        <input type="number" class="form-control" [(ngModel)]="minPrice" (keyup.enter)="applyFilters()" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Max price</label>
+        <input type="number" class="form-control" [(ngModel)]="maxPrice" (keyup.enter)="applyFilters()" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Sort</label>
+        <select class="form-select" [(ngModel)]="sort" (change)="applyFilters()">
+          <option value="">Title (A-Z)</option>
+          <option value="title_desc">Title (Z-A)</option>
+          <option value="price_asc">Price (low→high)</option>
+          <option value="price_desc">Price (high→low)</option>
+          <option value="newest">Newest</option>
+        </select>
+      </div>
     </div>
 
     <div class="row">
@@ -61,13 +81,25 @@ export class BookListComponent {
   pageSize = 12;
   totalPages = 1;
   selectedCategoryId: number | null = null;
+  minPrice: number | null = null;
+  maxPrice: number | null = null;
+  sort: string = '';
 
   constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router) {
-    // react to route param changes (e.g., /categories/:id)
+    // react to route param + query changes
     this.route.paramMap.subscribe(pm => {
       const cat = pm.get('id');
       this.selectedCategoryId = cat ? Number(cat) : null;
-      this.page = 1; // reset page when category changes
+      // ensure we reload when category changes even if query params do not
+      this.page = 1;
+      this.load();
+    });
+    this.route.queryParamMap.subscribe(qp => {
+      this.q = qp.get('q') ?? '';
+      this.page = Number(qp.get('page') ?? 1);
+      this.minPrice = qp.get('minPrice') ? Number(qp.get('minPrice')) : null;
+      this.maxPrice = qp.get('maxPrice') ? Number(qp.get('maxPrice')) : null;
+      this.sort = qp.get('sort') ?? '';
       this.load();
     });
 
@@ -83,16 +115,25 @@ export class BookListComponent {
     if (img) img.src = 'assets/book-placeholder.svg';
   }
 
-  search() {
-    this.page = 1;
-    // clear category when searching
-    this.router.navigate(['/books'], { queryParams: { q: this.q } });
-    this.selectedCategoryId = null;
-    this.load();
+  applyFilters() {
+    const query: any = { q: this.q || undefined, page: 1, minPrice: this.minPrice || undefined, maxPrice: this.maxPrice || undefined, sort: this.sort || undefined };
+    if (this.selectedCategoryId) {
+      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
+    } else {
+      this.router.navigate(['/books'], { queryParams: query });
+    }
   }
 
   load() {
-    this.bookService.getBooks({ q: this.q, categoryId: this.selectedCategoryId ?? undefined, page: this.page, pageSize: this.pageSize }).subscribe({
+    this.bookService.getBooks({
+      q: this.q,
+      categoryId: this.selectedCategoryId ?? undefined,
+      page: this.page,
+      pageSize: this.pageSize,
+      minPrice: this.minPrice,
+      maxPrice: this.maxPrice,
+      sort: this.sort
+    }).subscribe({
       next: (res: any) => {
         this.products = res.items;
         this.totalPages = res.totalPages;
@@ -111,19 +152,21 @@ export class BookListComponent {
 
   selectCategory(id: number | null) {
     this.selectedCategoryId = id;
-    this.page = 1;
+    const query: any = { q: this.q || undefined, page: 1, minPrice: this.minPrice || undefined, maxPrice: this.maxPrice || undefined, sort: this.sort || undefined };
     if (id) {
-      // navigate to categories route so URL is shareable
-      this.router.navigate(['/categories', id]);
+      this.router.navigate(['/categories', id], { queryParams: query });
     } else {
-      this.router.navigate(['/books']);
+      this.router.navigate(['/books'], { queryParams: query });
     }
-    this.load();
   }
 
   goto(p: number) {
     if (p < 1 || p > this.totalPages) return;
-    this.page = p;
-    this.load();
+    const query: any = { q: this.q || undefined, page: p, minPrice: this.minPrice || undefined, maxPrice: this.maxPrice || undefined, sort: this.sort || undefined };
+    if (this.selectedCategoryId) {
+      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
+    } else {
+      this.router.navigate(['/books'], { queryParams: query });
+    }
   }
 }

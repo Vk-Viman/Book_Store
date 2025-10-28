@@ -19,6 +19,7 @@ import { CommonModule } from '@angular/common';
       <div class="form-group mb-3">
         <label>Password</label>
         <input type="password" class="form-control" [(ngModel)]="password" name="password" required>
+        <div class="mt-1"><a routerLink="/forgot-password" class="small">Forgot password?</a></div>
       </div>
       <button type="submit" class="btn btn-primary w-100" [disabled]="loading">Login</button>
     </form>

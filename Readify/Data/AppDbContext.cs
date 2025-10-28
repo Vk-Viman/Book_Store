@@ -12,6 +12,9 @@ namespace Readify.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Category> Categories { get; set; }
+        public DbSet<AuditLog> AuditLogs { get; set; }
+        public DbSet<EmailLog> EmailLogs { get; set; }
+        public DbSet<UserProfileUpdate> UserProfileUpdates { get; set; }
         // Alias for readability: treat products as books in the app domain
         public DbSet<Product> Books => Products;
 
@@ -31,6 +34,13 @@ namespace Readify.Data
             modelBuilder.Entity<Product>()
                 .Property(p => p.Price)
                 .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.Title);
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.CategoryId);
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.Price);
         }
     }
 }

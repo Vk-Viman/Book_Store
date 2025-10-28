@@ -1,13 +1,18 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Readify.Data;
 using Readify.Helpers;
+using Readify.Middleware;
 using Readify.Services;
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// TODO: Integrate Serilog or Application Insights here for production telemetry.
 
 // Add services to the container.
 builder.Services.AddControllers()
@@ -33,8 +38,27 @@ builder.Services.AddSingleton<IMappingService, MappingService>();
 // Jwt helper
 builder.Services.AddSingleton<JwtHelper>();
 
-// Email service (dev logging implementation)
-builder.Services.AddScoped<IEmailService, LoggingEmailService>();
+// Email service: choose SMTP when enabled, otherwise use logging
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+if (builder.Configuration.GetValue<bool>("Smtp:Enabled"))
+{
+    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+}
+else
+{
+    builder.Services.AddScoped<IEmailService, LoggingEmailService>();
+}
+
+// Upload service
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
+builder.Services.AddScoped<IUploadService, LocalUploadService>();
+
+// Audit service
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditService, AuditService>();
+
+// Users service
+builder.Services.AddScoped<IUserService, UserService>();
 
 // CORS for Angular dev
 builder.Services.AddCors(options =>
@@ -44,6 +68,20 @@ builder.Services.AddCors(options =>
                         .AllowAnyHeader()
                         .AllowAnyMethod());
 });
+
+// Response caching
+builder.Services.AddResponseCaching();
+
+// Response compression (gzip+brotli)
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<GzipCompressionProvider>();
+    options.Providers.Add<BrotliCompressionProvider>();
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
 // Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "";
@@ -79,13 +117,18 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+app.UseMiddleware<ErrorHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseResponseCompression();
+app.UseResponseCaching();
 app.UseCors("AllowAngularApp");
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

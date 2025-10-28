@@ -19,8 +19,12 @@ namespace Readify.Controllers
 
         // GET /api/products
         [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] string? q, [FromQuery] int? categoryId, [FromQuery] string? author, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? sort = null)
+        [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, NoStore = false)]
+        public async Task<IActionResult> Get([FromQuery] string? q, [FromQuery] int? categoryId, [FromQuery] string? author, [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? sort = null)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 5, 100);
+
             var query = _context.Products.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(q))
@@ -38,14 +42,17 @@ namespace Readify.Controllers
                 query = query.Where(p => p.Authors.Contains(author));
             }
 
+            if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
+            if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
+
             var total = await query.CountAsync();
-            var totalPages = (int)Math.Ceiling(total / (double)pageSize);
 
             switch (sort)
             {
                 case "price_asc": query = query.OrderBy(p => p.Price); break;
                 case "price_desc": query = query.OrderByDescending(p => p.Price); break;
                 case "newest": query = query.OrderByDescending(p => p.CreatedAt); break;
+                case "title_desc": query = query.OrderByDescending(p => p.Title); break;
                 default: query = query.OrderBy(p => p.Title); break;
             }
 
@@ -73,11 +80,13 @@ namespace Readify.Controllers
                 UpdatedAt = p.UpdatedAt
             }).ToList();
 
+            var totalPages = (int)Math.Ceiling(total / (double)pageSize);
             return Ok(new { items = dtos, total, totalPages, page });
         }
 
         // GET /api/products/{id}
         [HttpGet("{id}")]
+        [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, NoStore = false)]
         public async Task<IActionResult> GetById(int id)
         {
             var product = await _context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
