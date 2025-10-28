@@ -100,32 +100,67 @@ END
             logger.LogWarning(ex, "Failed to ensure tables exist via raw SQL.");
         }
 
-        var adminEmail = config["Seed:AdminEmail"] ?? "admin@readify.local";
-        var adminPassword = config["Seed:AdminPassword"] ?? "Readify#Admin123!";
-
-        if (!await context.Users.AnyAsync(u => u.Email == adminEmail))
-        {
-            var admin = new User
-            {
-                FullName = "Readify Admin",
-                Email = adminEmail,
-                Role = "Admin",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword)
-            };
-            context.Users.Add(admin);
-            await context.SaveChangesAsync();
-            logger.LogInformation("Seeded default admin user {Email}", adminEmail);
-        }
-
-        // Run product/category seeder for demo content
+        // Seed demo users and sample data for local/offline mode
         try
         {
-            await DbSeeder.SeedAsync(context);
-            logger.LogInformation("Seeded sample products and categories.");
+            // Seed categories if none
+            if (!await context.Categories.AnyAsync())
+            {
+                var categories = new[] {
+                    new Category { Name = "Fiction" },
+                    new Category { Name = "Non-fiction" },
+                    new Category { Name = "Programming" },
+                    new Category { Name = "Self-Help / Personal Development" }
+                };
+                context.Categories.AddRange(categories);
+                await context.SaveChangesAsync();
+                logger.LogInformation("Seeded default categories.");
+            }
+
+            // Seed demo users
+            var demoAdminEmail = config["Seed:AdminEmail"] ?? "admin@demo.com";
+            var demoUserEmail = config["Seed:UserEmail"] ?? "user@demo.com";
+            var demoPassword = config["Seed:AdminPassword"] ?? "Readify#Demo123!";
+
+            if (!await context.Users.AnyAsync(u => u.Email == demoAdminEmail))
+            {
+                context.Users.Add(new User { FullName = "Demo Admin", Email = demoAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword) });
+            }
+            if (!await context.Users.AnyAsync(u => u.Email == demoUserEmail))
+            {
+                context.Users.Add(new User { FullName = "Demo User", Email = demoUserEmail, Role = "User", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword) });
+            }
+
+            await context.SaveChangesAsync();
+
+            // Seed sample products if none
+            if (!await context.Products.AnyAsync())
+            {
+                var firstCategory = await context.Categories.OrderBy(c => c.Id).FirstAsync();
+                var products = new[] {
+                    new Product { Title = "The Pragmatic Programmer", Authors = "Andrew Hunt, David Thomas", Description = "Classic programming book.", Price = 25.99m, StockQty = 10, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                    new Product { Title = "Clean Code", Authors = "Robert C. Martin", Description = "A Handbook of Agile Software Craftsmanship.", Price = 29.99m, StockQty = 15, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                    new Product { Title = "Sapiens", Authors = "Yuval Noah Harari", Description = "A Brief History of Humankind.", Price = 19.99m, StockQty = 20, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                };
+                context.Products.AddRange(products);
+                await context.SaveChangesAsync();
+                logger.LogInformation("Seeded sample products.");
+            }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to seed products/categories.");
+            logger.LogWarning(ex, "Failed to seed demo data.");
+        }
+
+        // Keep running original seeder for backward compatibility
+        try
+        {
+            await DbSeeder.SeedAsync(context);
+            logger.LogInformation("Ran legacy DbSeeder.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Legacy DbSeeder failed or not present.");
         }
     }
 }

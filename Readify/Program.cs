@@ -1,27 +1,23 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Readify.Data;
 using Readify.Helpers;
 using Readify.Middleware;
 using Readify.Services;
-using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// TODO: Integrate Serilog or Application Insights here for production telemetry.
-
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(opts =>
     {
-        opts.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        opts.JsonSerializerOptions.ReferenceHandler = JsonIgnoreCondition.IgnoreCycles;
         opts.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
     });
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -29,7 +25,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Register HttpClient factory for outbound HTTP calls (image validation)
+// HttpClient factory
 builder.Services.AddHttpClient();
 
 // Mapping service
@@ -38,26 +34,24 @@ builder.Services.AddSingleton<IMappingService, MappingService>();
 // Jwt helper
 builder.Services.AddSingleton<JwtHelper>();
 
-// Email service: choose SMTP when enabled, otherwise use logging
+// Email: default to logging implementation for local/demo mode. Smtp used only when explicitly enabled via config.
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
-if (builder.Configuration.GetValue<bool>("Smtp:Enabled"))
+if (builder.Environment.IsDevelopment() || !builder.Configuration.GetValue<bool>("Smtp:Enabled"))
 {
-    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+    builder.Services.AddScoped<IEmailService, LoggingEmailService>();
 }
 else
 {
-    builder.Services.AddScoped<IEmailService, LoggingEmailService>();
+    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 }
 
 // Upload service
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
 builder.Services.AddScoped<IUploadService, LocalUploadService>();
 
-// Audit service
+// Audit & user services
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditService, AuditService>();
-
-// Users service
 builder.Services.AddScoped<IUserService, UserService>();
 
 // CORS for Angular dev
@@ -69,19 +63,8 @@ builder.Services.AddCors(options =>
                         .AllowAnyMethod());
 });
 
-// Response caching
+// Response caching & compression
 builder.Services.AddResponseCaching();
-
-// Response compression (gzip+brotli)
-builder.Services.AddResponseCompression(options =>
-{
-    options.EnableForHttps = true;
-    options.Providers.Add<GzipCompressionProvider>();
-    options.Providers.Add<BrotliCompressionProvider>();
-});
-
-builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
-builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
 // Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "";
@@ -107,7 +90,7 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
-// Seed database (dev/staging recommended)
+// Seed database
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -125,7 +108,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseResponseCompression();
 app.UseResponseCaching();
 app.UseCors("AllowAngularApp");
 app.UseStaticFiles();
@@ -135,5 +117,4 @@ app.MapControllers();
 
 app.Run();
 
-// Expose Program for test projects that use WebApplicationFactory<Program>
 public partial class Program { }
