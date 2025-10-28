@@ -14,8 +14,8 @@
 
         <!-- Dual-range slider using two native range inputs (no extra dependency) -->
         <div class="range-slider" role="group" aria-label="Price range">
-          <input type="range" min="0" max="100" [value]="minPrice" (input)="onRangeInput($event, 'min')" aria-label="Minimum price" />
-          <input type="range" min="0" max="100" [value]="maxPrice" (input)="onRangeInput($event, 'max')" aria-label="Maximum price" />
+          <input type="range" min="0" max="100" [(ngModel)]="minPrice" (input)="onRangeInput($event, 'min')" aria-label="Minimum price" />
+          <input type="range" min="0" max="100" [(ngModel)]="maxPrice" (input)="onRangeInput($event, 'max')" aria-label="Maximum price" />
         </div>
 
       </div>

@@ -91,6 +91,7 @@ export class BookListComponent {
   loading = false;
   private priceDebounce: any;
 
+  // ensure minPrice and maxPrice have defaults and update listeners don't overwrite them
   constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router) {
     this.route.paramMap.subscribe(pm => {
       const cat = pm.get('id');
@@ -102,9 +103,9 @@ export class BookListComponent {
     this.route.queryParamMap.subscribe(qp => {
       this.q = qp.get('q') ?? '';
       this.page = Number(qp.get('page') ?? 1);
-      // read numeric params; if missing, keep defaults
-      this.minPrice = qp.has('minPrice') ? Number(qp.get('minPrice')) : 0;
-      this.maxPrice = qp.has('maxPrice') ? Number(qp.get('maxPrice')) : 100;
+      // only set if qp has values, otherwise keep defaults
+      if (qp.has('minPrice')) this.minPrice = Number(qp.get('minPrice'));
+      if (qp.has('maxPrice')) this.maxPrice = Number(qp.get('maxPrice'));
       this.sort = qp.get('sort') ?? '';
       this.load();
     });
