@@ -84,28 +84,32 @@ export class BookListComponent {
   totalPages = 1;
   total = 0;
   selectedCategoryId: number | null = null;
-  // default slider bounds (0-100)
+  // Slider values - start with full range
   minPrice: number = 0;
   maxPrice: number = 100;
   sort: string = '';
   loading = false;
   private priceDebounce: any;
 
-  // ensure minPrice and maxPrice have defaults and update listeners don't overwrite them
   constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router) {
     this.route.paramMap.subscribe(pm => {
       const cat = pm.get('id');
       this.selectedCategoryId = cat ? Number(cat) : null;
       this.page = 1;
-      // ensure we reload when category route param changes
       this.load();
     });
     this.route.queryParamMap.subscribe(qp => {
       this.q = qp.get('q') ?? '';
       this.page = Number(qp.get('page') ?? 1);
-      // only set if qp has values, otherwise keep defaults
-      if (qp.has('minPrice')) this.minPrice = Number(qp.get('minPrice'));
-      if (qp.has('maxPrice')) this.maxPrice = Number(qp.get('maxPrice'));
+      // Reset to defaults, then override only if query params exist
+      this.minPrice = 0;
+      this.maxPrice = 100;
+      if (qp.has('minPrice')) {
+        this.minPrice = Number(qp.get('minPrice'));
+      }
+      if (qp.has('maxPrice')) {
+        this.maxPrice = Number(qp.get('maxPrice'));
+      }
       this.sort = qp.get('sort') ?? '';
       this.load();
     });
@@ -126,8 +130,36 @@ export class BookListComponent {
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }
 
+  get priceMin(): number {
+    return this.minPrice;
+  }
+
+  get priceMax(): number {
+    return this.maxPrice;
+  }
+
+  get priceRangeLabel(): string {
+    return `Price Range: $${this.priceMin} - $${this.priceMax}`;
+  }
+
+  get priceChipLabel(): string {
+    return `Price: $${this.priceMin} - $${this.priceMax}`;
+  }
+
+  get minPercent(): number {
+    return this.minPrice;
+  }
+
+  get maxPercent(): number {
+    return this.maxPrice;
+  }
+
+  onImgError(event: Event) {
+    const img = event?.target as HTMLImageElement | null;
+    if (img) img.src = 'assets/book-placeholder.svg';
+  }
+
   hasActiveFilters(): boolean {
-    // treat default range as no filter
     return !!(this.q || this.selectedCategoryId || this.minPrice !== 0 || this.maxPrice !== 100);
   }
 
@@ -135,11 +167,21 @@ export class BookListComponent {
     return this.categories.find(c => c.id === id)?.name || '';
   }
 
-  onPriceChange() {
+  onRangeInput(event: Event, which: 'min' | 'max') {
+    const input = event.target as HTMLInputElement;
+    const val = Number(input.value);
+    
+    if (which === 'min') {
+      // Ensure min doesn't exceed max
+      this.minPrice = Math.min(val, this.maxPrice - 1);
+    } else {
+      // Ensure max doesn't go below min
+      this.maxPrice = Math.max(val, this.minPrice + 1);
+    }
+    
+    // Debounce the filter application
     clearTimeout(this.priceDebounce);
-    this.priceDebounce = setTimeout(() => {
-      this.applyFilters();
-    }, 500);
+    this.priceDebounce = setTimeout(() => this.applyFilters(), 500);
   }
 
   clearFilters() {
@@ -156,13 +198,19 @@ export class BookListComponent {
       page: 1, 
       sort: this.sort || undefined
     };
-    if (this.minPrice !== 0) query.minPrice = this.minPrice;
-    if (this.maxPrice !== 100) query.maxPrice = this.maxPrice;
-
+    
+    // Only add price params if they differ from defaults
+    if (this.minPrice !== 0) {
+      query.minPrice = this.minPrice;
+    }
+    if (this.maxPrice !== 100) {
+      query.maxPrice = this.maxPrice;
+    }
+    
     if (this.selectedCategoryId) {
-      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query }).then(() => this.load());
+      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
     } else {
-      this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
+      this.router.navigate(['/books'], { queryParams: query });
     }
   }
 
@@ -173,8 +221,8 @@ export class BookListComponent {
       categoryId: this.selectedCategoryId ?? undefined,
       page: this.page,
       pageSize: this.pageSize,
-      minPrice: this.minPrice,
-      maxPrice: this.maxPrice,
+      minPrice: this.minPrice !== 0 ? this.minPrice : undefined,
+      maxPrice: this.maxPrice !== 100 ? this.maxPrice : undefined,
       sort: this.sort
     }).subscribe({
       next: (res: any) => {
@@ -206,14 +254,16 @@ export class BookListComponent {
     const query: any = { 
       q: this.q || undefined, 
       page: 1, 
-      minPrice: this.minPrice || undefined, 
-      maxPrice: this.maxPrice || undefined, 
-      sort: this.sort || undefined 
+      sort: this.sort || undefined
     };
+    
+    if (this.minPrice !== 0) query.minPrice = this.minPrice;
+    if (this.maxPrice !== 100) query.maxPrice = this.maxPrice;
+    
     if (id) {
-      this.router.navigate(['/categories', id], { queryParams: query }).then(() => this.load());
+      this.router.navigate(['/categories', id], { queryParams: query });
     } else {
-      this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
+      this.router.navigate(['/books'], { queryParams: query });
     }
   }
 
@@ -223,49 +273,16 @@ export class BookListComponent {
     const query: any = { 
       q: this.q || undefined, 
       page: p, 
-      minPrice: this.minPrice || undefined, 
-      maxPrice: this.maxPrice || undefined, 
-      sort: this.sort || undefined 
+      sort: this.sort || undefined
     };
+    
+    if (this.minPrice !== 0) query.minPrice = this.minPrice;
+    if (this.maxPrice !== 100) query.maxPrice = this.maxPrice;
+    
     if (this.selectedCategoryId) {
-      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query }).then(() => this.load());
+      this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
     } else {
-      this.router.navigate(['/books'], { queryParams: query }).then(() => this.load());
+      this.router.navigate(['/books'], { queryParams: query });
     }
-  }
-
-  // Add new handler in component
-  onRangeInput(event: Event, which: 'min' | 'max') {
-    const input = event.target as HTMLInputElement;
-    const val = Number(input.value);
-    if (which === 'min') {
-      this.minPrice = Math.min(val, this.maxPrice);
-    } else {
-      this.maxPrice = Math.max(val, this.minPrice);
-    }
-    // debounce apply
-    clearTimeout(this.priceDebounce);
-    this.priceDebounce = setTimeout(() => this.applyFilters(), 300);
-  }
-
-  get priceMin(): number {
-    return this.minPrice ?? 0;
-  }
-
-  get priceMax(): number {
-    return this.maxPrice ?? 100;
-  }
-
-  get priceRangeLabel(): string {
-    return `Price Range: $${this.priceMin} - $${this.priceMax}`;
-  }
-
-  get priceChipLabel(): string {
-    return `Price: $${this.priceMin} - $${this.priceMax}`;
-  }
-
-  onImgError(event: Event) {
-    const img = event?.target as HTMLImageElement | null;
-    if (img) img.src = 'assets/book-placeholder.svg';
   }
 }

@@ -1,20 +1,22 @@
-<mat-toolbar color="primary">
-  <div class="container d-flex align-items-center">
+<mat-toolbar color="primary" class="main-toolbar">
+  <div class="container-fluid d-flex align-items-center">
     <a mat-button routerLink="/books" class="navbar-brand text-white">
       <mat-icon>book</mat-icon>
-      Readify
+      <span class="brand-text">Readify</span>
     </a>
     <span class="spacer"></span>
-    <nav class="d-none d-md-flex">
+    
+    <!-- Desktop Navigation -->
+    <nav class="d-none d-md-flex align-items-center">
       <a mat-button routerLink="/books" routerLinkActive="active" class="text-white">
         <mat-icon>library_books</mat-icon>
-        Books
+        <span class="nav-label">Books</span>
       </a>
-      <a mat-button [matMenuTriggerFor]="adminMenu" *ngIf="(isAdmin$ | async)" class="text-white">
+      <button mat-button [matMenuTriggerFor]="adminMenu" *ngIf="(isAdmin$ | async)" class="text-white">
         <mat-icon>admin_panel_settings</mat-icon>
-        Admin
+        <span class="nav-label">Admin</span>
         <mat-icon>arrow_drop_down</mat-icon>
-      </a>
+      </button>
       <mat-menu #adminMenu="matMenu">
         <a mat-menu-item routerLink="/admin/dashboard">
           <mat-icon>dashboard</mat-icon>
@@ -26,12 +28,15 @@
         </a>
       </mat-menu>
     </nav>
+    
     <span class="spacer"></span>
-    <div *ngIf="!(loggedIn$ | async)">
+    
+    <!-- Desktop Auth Buttons -->
+    <div *ngIf="!(loggedIn$ | async)" class="d-none d-md-flex">
       <a mat-button routerLink="/login" class="text-white">Login</a>
       <a mat-raised-button color="accent" routerLink="/register">Register</a>
     </div>
-    <div *ngIf="(loggedIn$ | async)">
+    <div *ngIf="(loggedIn$ | async)" class="d-none d-md-flex">
       <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Account menu" class="text-white">
         <mat-icon>account_circle</mat-icon>
       </button>
@@ -47,6 +52,49 @@
         </button>
       </mat-menu>
     </div>
+
+    <!-- Mobile Menu Button -->
+    <button mat-icon-button [matMenuTriggerFor]="mobileMenu" class="d-md-none text-white" aria-label="Mobile menu">
+      <mat-icon>menu</mat-icon>
+    </button>
+    <mat-menu #mobileMenu="matMenu" class="mobile-menu">
+      <a mat-menu-item routerLink="/books">
+        <mat-icon>library_books</mat-icon>
+        <span>Books</span>
+      </a>
+      <div *ngIf="(isAdmin$ | async)">
+        <mat-divider></mat-divider>
+        <a mat-menu-item routerLink="/admin/dashboard">
+          <mat-icon>dashboard</mat-icon>
+          <span>Dashboard</span>
+        </a>
+        <a mat-menu-item routerLink="/admin/products">
+          <mat-icon>inventory_2</mat-icon>
+          <span>Products</span>
+        </a>
+      </div>
+      <mat-divider></mat-divider>
+      <div *ngIf="!(loggedIn$ | async)">
+        <a mat-menu-item routerLink="/login">
+          <mat-icon>login</mat-icon>
+          <span>Login</span>
+        </a>
+        <a mat-menu-item routerLink="/register">
+          <mat-icon>person_add</mat-icon>
+          <span>Register</span>
+        </a>
+      </div>
+      <div *ngIf="(loggedIn$ | async)">
+        <a mat-menu-item routerLink="/profile">
+          <mat-icon>person</mat-icon>
+          <span>Profile</span>
+        </a>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </div>
+    </mat-menu>
   </div>
 </mat-toolbar>
 
