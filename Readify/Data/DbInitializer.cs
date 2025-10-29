@@ -1,170 +1,25 @@
 using Microsoft.EntityFrameworkCore;
 using Readify.Models;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Readify.Data;
 
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(AppDbContext context, IConfiguration config, ILogger logger)
+    public static async Task InitializeAsync(AppDbContext context, IConfiguration config, ILogger logger, IWebHostEnvironment env)
     {
-        // For local development prefer EnsureCreated to avoid migration conflicts when schema
-        // may have been created outside of EF migrations (EnsureCreated is non-destructive when DB exists).
+        // Apply migrations to bring database schema up-to-date.
+        // For production this is the recommended approach instead of executing ad-hoc SQL.
         try
         {
-            logger.LogInformation("Ensuring database is created (development-friendly)");
-            await context.Database.EnsureCreatedAsync();
+            logger.LogInformation("Applying pending migrations (if any)");
+            await context.Database.MigrateAsync();
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to ensure database created.");
-        }
-
-        // Ensure additional tables/columns exist when migrations are not kept in sync
-        try
-        {
-            var createPasswordResetSql = @"
-IF OBJECT_ID(N'[dbo].[PasswordResetTokens]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[PasswordResetTokens](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [UserId] INT NOT NULL,
-        [Token] NVARCHAR(4000) NOT NULL,
-        [ExpiresAt] DATETIME2 NOT NULL,
-        [Used] BIT NOT NULL DEFAULT 0
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createPasswordResetSql);
-            logger.LogInformation("Ensured PasswordResetTokens table exists.");
-
-            var createAuditSql = @"
-IF OBJECT_ID(N'[dbo].[AuditLogs]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[AuditLogs](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [UserId] INT NULL,
-        [Action] NVARCHAR(200) NOT NULL,
-        [Entity] NVARCHAR(200) NOT NULL,
-        [EntityId] INT NULL,
-        [Timestamp] DATETIME2 NOT NULL,
-        [Details] NVARCHAR(MAX) NULL
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createAuditSql);
-
-            var createEmailLogSql = @"
-IF OBJECT_ID(N'[dbo].[EmailLogs]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[EmailLogs](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [To] NVARCHAR(400) NOT NULL,
-        [Subject] NVARCHAR(400) NOT NULL,
-        [Body] NVARCHAR(MAX) NOT NULL,
-        [SentAt] DATETIME2 NOT NULL,
-        [Success] BIT NOT NULL,
-        [Error] NVARCHAR(MAX) NULL,
-        [Provider] NVARCHAR(100) NOT NULL
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createEmailLogSql);
-
-            var createUserProfileSql = @"
-IF OBJECT_ID(N'[dbo].[UserProfileUpdates]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[UserProfileUpdates](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [UserId] INT NOT NULL,
-        [OldFullName] NVARCHAR(400) NOT NULL,
-        [OldEmail] NVARCHAR(400) NOT NULL,
-        [NewFullName] NVARCHAR(400) NOT NULL,
-        [NewEmail] NVARCHAR(400) NOT NULL,
-        [UpdatedAt] DATETIME2 NOT NULL
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createUserProfileSql);
-
-            // Ensure cart and order related tables exist
-            var createCartSql = @"
-IF OBJECT_ID(N'[dbo].[CartItems]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[CartItems](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [UserId] INT NOT NULL,
-        [ProductId] INT NOT NULL,
-        [Quantity] INT NOT NULL,
-        CONSTRAINT FK_CartItems_Products FOREIGN KEY (ProductId) REFERENCES [Product](Id)
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createCartSql);
-
-            var createOrdersSql = @"
-IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[Orders](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [UserId] INT NOT NULL,
-        [OrderDate] DATETIME2 NOT NULL,
-        [TotalAmount] DECIMAL(18,2) NOT NULL,
-        [Status] NVARCHAR(100) NOT NULL
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createOrdersSql);
-
-            var createOrderItemsSql = @"
-IF OBJECT_ID(N'[dbo].[OrderItems]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[OrderItems](
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [OrderId] INT NOT NULL,
-        [ProductId] INT NOT NULL,
-        [Quantity] INT NOT NULL,
-        [UnitPrice] DECIMAL(18,2) NOT NULL,
-        CONSTRAINT FK_OrderItems_Orders FOREIGN KEY (OrderId) REFERENCES [Orders](Id),
-        CONSTRAINT FK_OrderItems_Products FOREIGN KEY (ProductId) REFERENCES [Product](Id)
-    );
-END
-";
-            await context.Database.ExecuteSqlRawAsync(createOrderItemsSql);
-
-            // Ensure shipping columns exist on Orders (idempotent)
-            var ensureShippingColsSql = @"
-IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
-BEGIN
-    IF COL_LENGTH('Orders','ShippingName') IS NULL
-    BEGIN
-        ALTER TABLE [Orders] ADD [ShippingName] NVARCHAR(400) NULL;
-    END
-    IF COL_LENGTH('Orders','ShippingAddress') IS NULL
-    BEGIN
-        ALTER TABLE [Orders] ADD [ShippingAddress] NVARCHAR(4000) NULL;
-    END
-    IF COL_LENGTH('Orders','ShippingPhone') IS NULL
-    BEGIN
-        ALTER TABLE [Orders] ADD [ShippingPhone] NVARCHAR(200) NULL;
-    END
-END
-";
-            await context.Database.ExecuteSqlRawAsync(ensureShippingColsSql);
-
-            // Ensure RowVersion column exists on Product (idempotent)
-            var addRowVersionSql = @"
-IF COL_LENGTH('Product','RowVersion') IS NULL
-BEGIN
-    ALTER TABLE [Product] ADD [RowVersion] rowversion;
-END
-";
-            await context.Database.ExecuteSqlRawAsync(addRowVersionSql);
-
-            logger.LogInformation("Ensured CartItems, Orders and OrderItems tables exist and RowVersion column present.");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to ensure tables exist via raw SQL.");
+            // Migration failures are serious; log and rethrow to fail fast in CI/production.
+            logger.LogError(ex, "Failed to apply migrations");
+            throw;
         }
 
         // Seed demo users and sample data for local/offline mode
@@ -214,18 +69,21 @@ END
                 logger.LogInformation("Seeded sample products.");
             }
 
-            // Seed cart items for demo user (optional)
+            // Seed cart items for demo user (optional) - skip in Development to start empty
             try
             {
-                var demoUser = await context.Users.FirstOrDefaultAsync(u => u.Email == (config["Seed:UserEmail"] ?? "user@demo.com"));
-                if (demoUser != null && !await context.CartItems.AnyAsync(c => c.UserId == demoUser.Id))
+                if (!env.IsDevelopment())
                 {
-                    var sampleProduct = await context.Products.OrderBy(p => p.Id).FirstOrDefaultAsync();
-                    if (sampleProduct != null)
+                    var demoUser = await context.Users.FirstOrDefaultAsync(u => u.Email == (config["Seed:UserEmail"] ?? "user@demo.com"));
+                    if (demoUser != null && !await context.CartItems.AnyAsync(c => c.UserId == demoUser.Id))
                     {
-                        context.CartItems.Add(new CartItem { UserId = demoUser.Id, ProductId = sampleProduct.Id, Quantity = 1 });
-                        await context.SaveChangesAsync();
-                        logger.LogInformation("Seeded sample cart item for demo user.");
+                        var sampleProduct = await context.Products.OrderBy(p => p.Id).FirstOrDefaultAsync();
+                        if (sampleProduct != null)
+                        {
+                            context.CartItems.Add(new CartItem { UserId = demoUser.Id, ProductId = sampleProduct.Id, Quantity = 1 });
+                            await context.SaveChangesAsync();
+                            logger.LogInformation("Seeded sample cart item for demo user.");
+                        }
                     }
                 }
             }
@@ -237,17 +95,6 @@ END
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to seed demo data.");
-        }
-
-        // Keep running original seeder for backward compatibility
-        try
-        {
-            await DbSeeder.SeedAsync(context);
-            logger.LogInformation("Ran legacy DbSeeder.");
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "Legacy DbSeeder failed or not present.");
         }
     }
 }
