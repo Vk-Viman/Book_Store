@@ -6,11 +6,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { CartItemComponent } from '../../components/cart-item.component';
 
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule, MatListModule, MatButtonModule, MatCardModule, MatIconModule],
+  imports: [CommonModule, MatListModule, MatButtonModule, MatCardModule, MatIconModule, CartItemComponent],
   template: `
   <div class="container mt-4">
     <mat-card>
@@ -20,14 +21,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
         <div *ngIf="!loading && items.length===0" class="text-center py-4">Your cart is empty.</div>
         <mat-list *ngIf="!loading && items.length>0">
           <mat-list-item *ngFor="let it of items">
-            <img matListAvatar [src]="it.product?.imageUrl || 'assets/book-placeholder.svg'" alt="" width="56" />
-            <h4 matLine>{{ it.product?.title }}</h4>
-            <p matLine>{{ it.product?.price | currency }} x {{ it.quantity }} = {{ (it.product?.price * it.quantity) | currency }}</p>
-            <div>
-              <button class="btn btn-sm btn-outline-secondary me-1" (click)="changeQty(it.productId, it.quantity - 1)">-</button>
-              <button class="btn btn-sm btn-outline-secondary me-1" (click)="changeQty(it.productId, it.quantity + 1)">+</button>
-              <button class="btn btn-sm btn-danger" (click)="remove(it.productId)">Remove</button>
-            </div>
+            <app-cart-item [item]="it" (quantityChange)="changeQty($event.productId, $event.quantity)" (removeItem)="remove($event)"></app-cart-item>
           </mat-list-item>
         </mat-list>
       </mat-card-content>

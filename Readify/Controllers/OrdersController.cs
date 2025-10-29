@@ -8,6 +8,7 @@ using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
 using Readify.DTOs;
+using System.Threading;
 
 namespace Readify.Controllers;
 
@@ -105,53 +106,96 @@ public class OrdersController : ControllerBase
                     ShippingPhone = dto?.ShippingPhone
                 };
 
-                _context.Orders.Add(order);
-                _context.CartItems.RemoveRange(cartItems);
-                await _context.SaveChangesAsync();
-
-                // After save, explicitly read updated stock values for logging
-                foreach (var c in cartItems)
+                try
                 {
+                    // Retry loop for DbUpdateConcurrencyException
+                    var attempts = 0;
+                    const int maxAttempts = 3;
+                    while (true)
+                    {
+                        try
+                        {
+                            _context.Orders.Add(order);
+                            _context.CartItems.RemoveRange(cartItems);
+                            await _context.SaveChangesAsync();
+                            break; // success
+                        }
+                        catch (DbUpdateConcurrencyException concEx)
+                        {
+                            attempts++;
+                            _logger.LogWarning(concEx, "Concurrency conflict during checkout attempt {Attempt}", attempts);
+                            if (attempts >= maxAttempts)
+                            {
+                                throw;
+                            }
+                            // Backoff before retrying
+                            await Task.Delay(200 * attempts);
+                            // refresh tracked product entities' RowVersion by reloading from db
+                            foreach (var c in cartItems)
+                            {
+                                var fresh = await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == c.ProductId);
+                                if (fresh != null)
+                                {
+                                    // Update the local included product reference if any
+                                    c.Product = fresh;
+                                }
+                            }
+                        }
+                    }
+
+                    // After save, explicitly read updated stock values for logging
+                    foreach (var c in cartItems)
+                    {
+                        try
+                        {
+                            var refreshed = await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == c.ProductId);
+                            _logger.LogInformation("Post-checkout stock for product {ProductId} ('{Title}') is {StockQty}", c.ProductId, refreshed?.Title, refreshed?.StockQty);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to read product {ProductId} after checkout", c.ProductId);
+                        }
+                    }
+
+                    await tx.CommitAsync();
+
+                    _logger.LogInformation("Order {OrderId} created for user {UserId}", order.Id, userId.Value);
+
+                    // reload saved order including items and product details
+                    var savedOrder = await _context.Orders
+                        .Include(o => o.Items).ThenInclude(i => i.Product)
+                        .FirstOrDefaultAsync(o => o.Id == order.Id);
+
+                    // send confirmation via logging email (non-blocking)
                     try
                     {
-                        var refreshed = await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == c.ProductId);
-                        _logger.LogInformation("Post-checkout stock for product {ProductId} ('{Title}') is {StockQty}", c.ProductId, refreshed?.Title, refreshed?.StockQty);
+                        var user = await _context.Users.FindAsync(userId.Value);
+                        var emailTo = user?.Email ?? string.Empty;
+                        _ = _email.SendTemplateAsync(emailTo, "OrderConfirmation", new { OrderId = order.Id });
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to read product {ProductId} after checkout", c.ProductId);
+                        _logger.LogWarning(ex, "Failed to send order confirmation email for order {OrderId}", order.Id);
                     }
+
+                    return Ok(savedOrder);
                 }
-
-                await tx.CommitAsync();
-
-                _logger.LogInformation("Order {OrderId} created for user {UserId}", order.Id, userId.Value);
-
-                // reload saved order including items and product details
-                var savedOrder = await _context.Orders
-                    .Include(o => o.Items).ThenInclude(i => i.Product)
-                    .FirstOrDefaultAsync(o => o.Id == order.Id);
-
-                // send confirmation via logging email (non-blocking)
-                try
+                catch (DbUpdateException dbEx)
                 {
-                    var user = await _context.Users.FindAsync(userId.Value);
-                    var emailTo = user?.Email ?? string.Empty;
-                    _ = _email.SendTemplateAsync(emailTo, "OrderConfirmation", new { OrderId = order.Id });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to send order confirmation email for order {OrderId}", order.Id);
-                }
-
-                return Ok(savedOrder);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                _logger.LogError(dbEx, "Database error during checkout");
-                await tx.RollbackAsync();
+                    _logger.LogError(dbEx, "Database error during checkout");
+                    await tx.RollbackAsync();
 #if DEBUG
-                return StatusCode(500, new { message = "Failed to checkout - database error", error = dbEx.ToString() });
+                    return StatusCode(500, new { message = "Failed to checkout - database error", error = dbEx.ToString() });
+#else
+                    return StatusCode(500, new { message = "Failed to checkout" });
+#endif
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Checkout failed");
+#if DEBUG
+                return StatusCode(500, new { message = "Failed to checkout", error = ex.ToString() });
 #else
                 return StatusCode(500, new { message = "Failed to checkout" });
 #endif
