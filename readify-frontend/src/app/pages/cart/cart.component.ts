@@ -7,11 +7,12 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CartItemComponent } from '../../components/cart-item.component';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule, MatListModule, MatButtonModule, MatCardModule, MatIconModule, CartItemComponent],
+  imports: [CommonModule, MatListModule, MatButtonModule, MatCardModule, MatIconModule, CartItemComponent, RouterModule],
   template: `
   <div class="container mt-4">
     <mat-card>
