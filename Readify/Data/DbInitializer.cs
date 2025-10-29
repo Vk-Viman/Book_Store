@@ -7,28 +7,19 @@ public static class DbInitializer
 {
     public static async Task InitializeAsync(AppDbContext context, IConfiguration config, ILogger logger)
     {
-        // Apply pending migrations (recommended) otherwise ensure database created
+        // For local development prefer EnsureCreated to avoid migration conflicts when schema
+        // may have been created outside of EF migrations (EnsureCreated is non-destructive when DB exists).
         try
         {
-            var pending = context.Database.GetPendingMigrations();
-            if (pending != null && pending.Any())
-            {
-                logger.LogInformation("Applying {Count} pending migrations.", pending.Count());
-                await context.Database.MigrateAsync();
-            }
-            else
-            {
-                logger.LogInformation("No migrations found; ensuring database is created from model.");
-                await context.Database.EnsureCreatedAsync();
-            }
+            logger.LogInformation("Ensuring database is created (development-friendly)");
+            await context.Database.EnsureCreatedAsync();
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to apply migrations automatically, falling back to EnsureCreated().");
-            await context.Database.EnsureCreatedAsync();
+            logger.LogWarning(ex, "Failed to ensure database created.");
         }
 
-        // Ensure additional tables exist when migrations are not kept in sync
+        // Ensure additional tables/columns exist when migrations are not kept in sync
         try
         {
             var createPasswordResetSql = @"
@@ -140,7 +131,36 @@ END
 ";
             await context.Database.ExecuteSqlRawAsync(createOrderItemsSql);
 
-            logger.LogInformation("Ensured CartItems, Orders and OrderItems tables exist.");
+            // Ensure shipping columns exist on Orders (idempotent)
+            var ensureShippingColsSql = @"
+IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('Orders','ShippingName') IS NULL
+    BEGIN
+        ALTER TABLE [Orders] ADD [ShippingName] NVARCHAR(400) NULL;
+    END
+    IF COL_LENGTH('Orders','ShippingAddress') IS NULL
+    BEGIN
+        ALTER TABLE [Orders] ADD [ShippingAddress] NVARCHAR(4000) NULL;
+    END
+    IF COL_LENGTH('Orders','ShippingPhone') IS NULL
+    BEGIN
+        ALTER TABLE [Orders] ADD [ShippingPhone] NVARCHAR(200) NULL;
+    END
+END
+";
+            await context.Database.ExecuteSqlRawAsync(ensureShippingColsSql);
+
+            // Ensure RowVersion column exists on Product (idempotent)
+            var addRowVersionSql = @"
+IF COL_LENGTH('Product','RowVersion') IS NULL
+BEGIN
+    ALTER TABLE [Product] ADD [RowVersion] rowversion;
+END
+";
+            await context.Database.ExecuteSqlRawAsync(addRowVersionSql);
+
+            logger.LogInformation("Ensured CartItems, Orders and OrderItems tables exist and RowVersion column present.");
         }
         catch (Exception ex)
         {
