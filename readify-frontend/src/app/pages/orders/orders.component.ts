@@ -8,6 +8,13 @@ import { MatListModule } from '@angular/material/list';
   selector: 'app-orders',
   standalone: true,
   imports: [CommonModule, MatCardModule, MatListModule],
+  styles: [
+    `.order-title { font-weight: 600; font-size: 1rem; margin: 0; }
+     .order-meta { font-size: 0.95rem; color: rgba(0,0,0,0.75); margin: 0; }
+     mat-list-item { align-items: start; }
+     mat-card { overflow: visible; }
+    `
+  ],
   template: `
   <div class="container mt-4">
     <mat-card>
@@ -17,9 +24,9 @@ import { MatListModule } from '@angular/material/list';
         <div *ngIf="!loading && orders.length===0" class="text-center py-4">You have no orders yet.</div>
         <mat-list *ngIf="!loading && orders.length>0">
           <mat-list-item *ngFor="let o of orders">
-            <div>
-              <h4 matLine>Order #{{ o.id }} - {{ o.orderDate | date:'medium' }}</h4>
-              <p matLine>Total: {{ o.totalAmount | currency }} — Status: {{ o.status }}</p>
+            <div style="width:100%">
+              <div matLine class="order-title">Order #{{ o.id }} - {{ o.orderDate | date:'medium' }}</div>
+              <div matLine class="order-meta">Total: {{ o.totalAmount | currency }} — Status: {{ o.status }}</div>
             </div>
           </mat-list-item>
         </mat-list>
