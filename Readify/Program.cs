@@ -54,6 +54,10 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
+
+// register mock payment service
+builder.Services.AddSingleton<IPaymentService, MockPaymentService>();
+
 // CORS for Angular dev
 builder.Services.AddCors(options =>
 {

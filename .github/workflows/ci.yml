@@ -68,7 +68,7 @@ jobs:
     - name: Run Cypress E2E
       working-directory: readify-frontend
       run: |
-        npx cypress run || true
+        npx cypress run
 
   docker-push:
     name: Build and push Docker images

@@ -91,6 +91,29 @@ public class OrdersController : ControllerBase
                     }
                 }
 
+                // Try a mock charge before creating order (non-blocking failure handling)
+                var charged = true; // default true
+                // If a payment service is registered in DI, use it
+                try
+                {
+                    var payment = HttpContext.RequestServices.GetService(typeof(IPaymentService)) as IPaymentService;
+                    if (payment != null)
+                    {
+                        // allow client to send a payment token in header for testing flaky/fail behaviour
+                        var payToken = Request.Headers["X-Payment-Token"].FirstOrDefault();
+                        var payResult = await payment.ChargeAsync(computedTotal, token: payToken);
+                        if (!payResult)
+                        {
+                            await tx.RollbackAsync();
+                            return BadRequest(new { message = "Payment declined" });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Payment processing failed (mock)");
+                }
+
                 var order = new Order
                 {
                     UserId = userId.Value,

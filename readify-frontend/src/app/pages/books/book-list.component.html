@@ -118,7 +118,7 @@
       <!-- Products -->
       <div *ngIf="!loading && products.length > 0" class="row">
         <div class="col-md-4 mb-4" *ngFor="let p of products">
-          <mat-card class="h-100 product-card">
+          <mat-card class="h-100 product-card" data-cy="book-card">
             <img 
               mat-card-image 
               [src]="p.imageUrl || 'assets/book-placeholder.svg'" 
@@ -132,14 +132,14 @@
             </mat-card-header>
             <mat-card-content>
               <p class="price-tag">{{ p.price | currency }}</p>
-              <p class="stock-info" *ngIf="p.stockQty > 0">In Stock: {{ p.stockQty }}</p>
-              <p class="stock-info text-danger" *ngIf="p.stockQty === 0">Out of Stock</p>
+              <p class="stock-info" *ngIf="p.stockQty > 0" data-cy="stock">In Stock: {{ p.stockQty }}</p>
+              <p class="stock-info text-danger" *ngIf="p.stockQty === 0" data-cy="stock">Out of Stock</p>
             </mat-card-content>
             <mat-card-actions align="end">
               <a mat-raised-button color="primary" [routerLink]="['/books', p.id]" [attr.aria-label]="'View details for ' + p.title">
                 View Details
               </a>
-              <button mat-stroked-button color="accent" (click)="addToCart(p)" [disabled]="p.stockQty===0" class="ms-2">
+              <button mat-stroked-button color="accent" (click)="addToCart(p)" [disabled]="p.stockQty===0" class="ms-2" data-cy="add-to-cart">
                 <mat-icon>shopping_cart</mat-icon>
                 Add to Cart
               </button>
