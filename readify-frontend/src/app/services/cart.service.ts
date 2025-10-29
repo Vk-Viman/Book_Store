@@ -51,7 +51,7 @@ export class CartService {
     );
   }
 
-  addToCart(productId: number, quantity: number = 1, productObj?: any) {
+  addToCart(productId: number, quantity: number = 1, productObj?: any): Observable<any> {
     const token = this.auth.getToken();
     if (!token) {
       const items = this.loadLocal();
@@ -71,7 +71,7 @@ export class CartService {
     );
   }
 
-  removeFromCart(productId: number) {
+  removeFromCart(productId: number): Observable<any> {
     const token = this.auth.getToken();
     if (!token) {
       const items = this.loadLocal().filter(i => i.productId !== productId);
@@ -84,7 +84,7 @@ export class CartService {
     );
   }
 
-  checkout() {
+  checkout(): Observable<any> {
     const token = this.auth.getToken();
     if (!token) {
       // simulate order creation locally
@@ -102,13 +102,13 @@ export class CartService {
     );
   }
 
-  getOrders() {
+  getOrders(): Observable<any[]> {
     const token = this.auth.getToken();
     if (!token) return of([]);
     return this.http.get<any[]>('/api/orders');
   }
 
-  refreshCount() {
+  refreshCount(): void {
     const token = this.auth.getToken();
     if (!token) {
       const local = this.loadLocal();

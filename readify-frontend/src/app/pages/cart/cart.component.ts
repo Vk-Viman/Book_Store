@@ -52,14 +52,29 @@ export class CartComponent {
 
   load() {
     this.loading = true;
-    this.cart.getCart().subscribe({ next: (res: any) => { this.items = res; this.total = this.items.reduce((s: number, i: any) => s + ((i.product?.price ?? 0) * i.quantity), 0); this.loading = false; }, error: () => { this.loading = false; } });
+    this.cart.getCart().subscribe(
+      (res: any) => { this.items = res; this.total = this.items.reduce((s: number, i: any) => s + ((i.product?.price ?? 0) * i.quantity), 0); this.loading = false; },
+      () => { this.loading = false; }
+    );
   }
 
   remove(productId: number) {
-    this.cart.removeFromCart(productId).subscribe({ next: () => { this.snack.open('Removed from cart', 'Close', { duration: 2000 }); this.load(); }, error: () => this.snack.open('Failed to remove', 'Close', { duration: 2000 }) });
+    this.cart.removeFromCart(productId).subscribe(
+      () => { this.snack.open('Removed from cart', 'Close', { duration: 2000 }); this.load(); },
+      (err: any) => {
+        const msg = err?.error?.message || err?.message || 'Failed to remove';
+        this.snack.open(msg, 'Close', { duration: 2000 });
+      }
+    );
   }
 
   checkout() {
-    this.cart.checkout().subscribe({ next: (res: any) => { this.snack.open('Order placed', 'Close', { duration: 3000 }); this.items = []; this.total = 0; }, error: () => this.snack.open('Failed to checkout', 'Close', { duration: 3000 }) });
+    this.cart.checkout().subscribe(
+      (res: any) => { this.snack.open('Order placed', 'Close', { duration: 3000 }); this.items = []; this.total = 0; },
+      (err: any) => {
+        const msg = err?.error?.message || err?.message || 'Failed to checkout';
+        this.snack.open(msg, 'Close', { duration: 3000 });
+      }
+    );
   }
 }

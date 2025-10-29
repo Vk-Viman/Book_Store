@@ -264,28 +264,17 @@ export class BookDetailComponent {
   load() {
     this.error = '';
     this.loading = true;
-    this.productService.getProduct(this.id!).subscribe({
-      next: (res: any) => {
-        this.product = res;
-        this.loading = false;
-      },
-      error: (err) => {
-        console.error('Failed to load product', err);
-        this.error = 'Failed to load book details. Please try again later.';
-        this.loading = false;
-      }
-    });
+    this.productService.getProduct(this.id!).subscribe(
+      (res: any) => { this.product = res; this.loading = false; },
+      (err: any) => { console.error('Failed to load product', err); this.error = 'Failed to load book details. Please try again later.'; this.loading = false; }
+    );
   }
 
   addToCart() {
     if (!this.product) return;
-    this.cart.addToCart(this.product.id).subscribe({
-      next: () => {
-        this.notify.success(`${this.product.title} added to cart`);
-      },
-      error: () => {
-        this.notify.error('Failed to add to cart');
-      }
-    });
+    this.cart.addToCart(this.product.id).subscribe(
+      () => { this.notify.success(`${this.product.title} added to cart`); },
+      (err: any) => { const msg = err?.error?.message || err?.message || 'Failed to add to cart'; this.notify.error(msg); }
+    );
   }
 }
