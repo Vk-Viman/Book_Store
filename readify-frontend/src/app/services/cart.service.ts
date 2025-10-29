@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, tap, catchError, of, Observable } from 'rxjs';
+import { BehaviorSubject, tap, catchError, of, Observable, Subject } from 'rxjs';
 import { AuthService } from './auth.service';
 
 const LOCAL_CART_KEY = 'readify_cart_v1';
@@ -9,6 +9,10 @@ const LOCAL_CART_KEY = 'readify_cart_v1';
 export class CartService {
   private _count = new BehaviorSubject<number>(0);
   cartCount$ = this._count.asObservable();
+
+  // Notify when an order is successfully placed so UI can refresh product data
+  private _orderCompleted = new Subject<void>();
+  orderCompleted$ = this._orderCompleted.asObservable();
 
   constructor(private http: HttpClient, private auth: AuthService) {
     // try to initialize count from server (silent) or local storage
@@ -84,6 +88,29 @@ export class CartService {
     );
   }
 
+  updateQuantity(productId: number, quantity: number): Observable<any> {
+    const token = this.auth.getToken();
+    if (!token) {
+      const items = this.loadLocal();
+      const existing = items.find(i => i.productId === productId);
+      if (existing) {
+        if (quantity <= 0) {
+          const filtered = items.filter(i => i.productId !== productId);
+          this.saveLocal(filtered);
+          return of(null);
+        }
+        existing.quantity = quantity;
+        this.saveLocal(items);
+        return of(existing);
+      }
+      return of(null);
+    }
+    return this.http.put('/api/cart/update', { productId, quantity }).pipe(
+      tap(() => this.refreshCount()),
+      catchError(err => { throw err; })
+    );
+  }
+
   checkout(): Observable<any> {
     const token = this.auth.getToken();
     if (!token) {
@@ -93,11 +120,13 @@ export class CartService {
       // clear local cart
       this.saveLocal([]);
       this.refreshCount();
+      // notify order completed so UI can refresh product data
+      this._orderCompleted.next();
       return of({ ok: true, local: true });
     }
 
     return this.http.post('/api/orders/checkout', {}).pipe(
-      tap(() => this.refreshCount()),
+      tap(() => { this.refreshCount(); this._orderCompleted.next(); }),
       catchError(err => { throw err; })
     );
   }

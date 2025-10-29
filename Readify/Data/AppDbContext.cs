@@ -49,6 +49,11 @@ namespace Readify.Data
                 .Property(i => i.UnitPrice)
                 .HasPrecision(18,2);
 
+            // Concurrency token
+            modelBuilder.Entity<Product>()
+                .Property(p => p.RowVersion)
+                .IsRowVersion();
+
             modelBuilder.Entity<Product>()
                 .HasIndex(p => p.Title);
             modelBuilder.Entity<Product>()

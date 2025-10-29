@@ -254,6 +254,9 @@ export class BookDetailComponent {
   ) {
     this.id = Number(this.route.snapshot.paramMap.get('id'));
     if (this.id) this.load();
+
+    // refresh product when an order completes to show updated stock
+    this.cart.orderCompleted$.subscribe(() => { if (this.id) this.refreshProduct(); });
   }
 
   onImgError(event: Event) {
@@ -268,6 +271,11 @@ export class BookDetailComponent {
       (res: any) => { this.product = res; this.loading = false; },
       (err: any) => { console.error('Failed to load product', err); this.error = 'Failed to load book details. Please try again later.'; this.loading = false; }
     );
+  }
+
+  refreshProduct() {
+    if (!this.id) return;
+    this.productService.getProduct(this.id).subscribe({ next: (res:any) => { this.product = res; }, error: () => { /* ignore */ } });
   }
 
   addToCart() {

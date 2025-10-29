@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Readify.Models
 {
@@ -20,6 +21,10 @@ namespace Readify.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public int? CreatedByUserId { get; set; }
+
+        // Concurrency token to protect stock updates
+        [Timestamp]
+        public byte[]? RowVersion { get; set; }
 
         public Category? Category { get; set; }
     }

@@ -69,27 +69,23 @@ public class OrdersController : ControllerBase
             await using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Validate and update stock
+                // Validate and update stock using a single atomic SQL UPDATE per product
                 foreach (var c in cartItems)
                 {
-                    var p = c.Product; // included
-                    if (p == null)
+                    // Ensure product exists
+                    if (c.Product == null)
                     {
                         await tx.RollbackAsync();
                         return BadRequest(new { message = $"Product {c.ProductId} not found" });
                     }
 
-                    // if stock tracking enabled (StockQty >= 0 assumed), check
-                    if (p.StockQty > 0)
+                    // Perform atomic decrement only if sufficient stock exists
+                    var rows = await _context.Database.ExecuteSqlInterpolatedAsync($@"UPDATE Product SET StockQty = StockQty - {c.Quantity} WHERE Id = {c.ProductId} AND StockQty >= {c.Quantity}");
+                    if (rows == 0)
                     {
-                        if (p.StockQty < c.Quantity)
-                        {
-                            await tx.RollbackAsync();
-                            return BadRequest(new { message = $"Insufficient stock for product '{p.Title}'. Available: {p.StockQty}, requested: {c.Quantity}" });
-                        }
-                        p.StockQty -= c.Quantity;
-                        // ensure EF marks the property as modified
-                        _context.Entry(p).Property(pp => pp.StockQty).IsModified = true;
+                        // No rows updated => insufficient stock or product missing
+                        await tx.RollbackAsync();
+                        return BadRequest(new { message = $"Insufficient stock for product '{c.Product.Title}'. Available: {c.Product.StockQty}, requested: {c.Quantity}" });
                     }
                 }
 
@@ -109,7 +105,7 @@ public class OrdersController : ControllerBase
                 _context.CartItems.RemoveRange(cartItems);
                 await _context.SaveChangesAsync();
 
-                // After save, explicitly log updated stock values for debugging
+                // After save, explicitly read updated stock values for logging
                 foreach (var c in cartItems)
                 {
                     try
@@ -144,6 +140,10 @@ public class OrdersController : ControllerBase
                     _logger.LogWarning(ex, "Failed to send order confirmation email for order {OrderId}", order.Id);
                 }
 
+                // Save shipping info if provided (client may include in future)
+                // NOTE: current frontend checkout form is mock and does not send shipping fields.
+                // If shipping data arrives in the future, set order.ShippingName/Address/Phone here before saving.
+                
                 return Ok(savedOrder);
             }
             catch (DbUpdateException dbEx)

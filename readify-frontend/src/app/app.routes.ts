@@ -18,6 +18,7 @@ export const routes: Routes = [
   { path: 'user/home', redirectTo: 'books', pathMatch: 'full' },
   { path: 'admin/home', redirectTo: 'admin/dashboard', pathMatch: 'full' },
   { path: 'profile', loadComponent: () => import('./pages/profile/profile.component').then(m => m.ProfileComponent), canActivate: [authGuard] },
+  { path: 'checkout', loadComponent: () => import('./pages/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },
 
   // Admin area
   { path: 'admin/dashboard', loadComponent: () => import('./pages/admin/admin-dashboard.component').then(m => m.AdminDashboardComponent), canActivate: [authGuard] },
