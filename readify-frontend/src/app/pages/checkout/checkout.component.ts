@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CartService } from '../../services/cart.service';
 import { Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-checkout',
@@ -33,12 +34,13 @@ export class CheckoutComponent {
   model = { name: '', address: '', phone: '' };
   processing = false;
 
-  constructor(private cart: CartService, private router: Router) {}
+  constructor(private cart: CartService, private router: Router, private http: HttpClient) {}
 
   submit() {
     if (!this.model.name || !this.model.address || !this.model.phone) return;
     this.processing = true;
-    // For now we send checkout and then redirect to orders
-    this.cart.checkout().subscribe({ next: () => { this.processing = false; this.router.navigate(['/orders']); }, error: () => { this.processing = false; alert('Checkout failed'); } });
+    // Send shipping info to the backend during checkout
+    this.http.post('/api/orders/checkout', { shippingName: this.model.name, shippingAddress: this.model.address, shippingPhone: this.model.phone })
+      .subscribe({ next: () => { this.processing = false; this.cart.checkout().subscribe(() => { this.router.navigate(['/orders']); }); }, error: () => { this.processing = false; alert('Checkout failed'); } });
   }
 }

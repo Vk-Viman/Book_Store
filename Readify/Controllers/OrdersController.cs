@@ -7,6 +7,7 @@ using Readify.Services;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using System.IdentityModel.Tokens.Jwt;
+using Readify.DTOs;
 
 namespace Readify.Controllers;
 
@@ -47,7 +48,7 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost("checkout")]
-    public async Task<IActionResult> Checkout()
+    public async Task<IActionResult> Checkout([FromBody] CheckoutDto dto)
     {
         try
         {
@@ -98,7 +99,10 @@ public class OrdersController : ControllerBase
                         Quantity = c.Quantity,
                         UnitPrice = c.Product?.Price ?? 0m
                     }).ToList(),
-                    TotalAmount = computedTotal
+                    TotalAmount = computedTotal,
+                    ShippingName = dto?.ShippingName,
+                    ShippingAddress = dto?.ShippingAddress,
+                    ShippingPhone = dto?.ShippingPhone
                 };
 
                 _context.Orders.Add(order);
@@ -140,10 +144,6 @@ public class OrdersController : ControllerBase
                     _logger.LogWarning(ex, "Failed to send order confirmation email for order {OrderId}", order.Id);
                 }
 
-                // Save shipping info if provided (client may include in future)
-                // NOTE: current frontend checkout form is mock and does not send shipping fields.
-                // If shipping data arrives in the future, set order.ShippingName/Address/Phone here before saving.
-                
                 return Ok(savedOrder);
             }
             catch (DbUpdateException dbEx)

@@ -23,9 +23,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
             <img matListAvatar [src]="it.product?.imageUrl || 'assets/book-placeholder.svg'" alt="" width="56" />
             <h4 matLine>{{ it.product?.title }}</h4>
             <p matLine>{{ it.product?.price | currency }} x {{ it.quantity }} = {{ (it.product?.price * it.quantity) | currency }}</p>
-            <button mat-icon-button color="warn" (click)="remove(it.productId)">
-              <mat-icon>delete</mat-icon>
-            </button>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary me-1" (click)="changeQty(it.productId, it.quantity - 1)">-</button>
+              <button class="btn btn-sm btn-outline-secondary me-1" (click)="changeQty(it.productId, it.quantity + 1)">+</button>
+              <button class="btn btn-sm btn-danger" (click)="remove(it.productId)">Remove</button>
+            </div>
           </mat-list-item>
         </mat-list>
       </mat-card-content>
@@ -34,7 +36,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
           <strong>Total: {{ total | currency }}</strong>
         </div>
         <div>
-          <button mat-stroked-button color="primary" (click)="checkout()">Checkout</button>
+          <a class="btn btn-outline-primary" routerLink="/checkout">Checkout</a>
         </div>
       </mat-card-actions>
     </mat-card>
@@ -55,6 +57,13 @@ export class CartComponent {
     this.cart.getCart().subscribe(
       (res: any) => { this.items = res; this.total = this.items.reduce((s: number, i: any) => s + ((i.product?.price ?? 0) * i.quantity), 0); this.loading = false; },
       () => { this.loading = false; }
+    );
+  }
+
+  changeQty(productId: number, qty: number) {
+    this.cart.updateQuantity(productId, qty).subscribe(
+      () => { this.load(); },
+      (err: any) => { const msg = err?.error?.message || err?.message || 'Failed to update quantity'; this.snack.open(msg, 'Close', { duration: 3000 }); }
     );
   }
 
