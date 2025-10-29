@@ -111,7 +111,7 @@ export class CartService {
     );
   }
 
-  checkout(): Observable<any> {
+  checkout(shipping?: { shippingName?: string; shippingAddress?: string; shippingPhone?: string }): Observable<any> {
     const token = this.auth.getToken();
     if (!token) {
       // simulate order creation locally
@@ -125,7 +125,8 @@ export class CartService {
       return of({ ok: true, local: true });
     }
 
-    return this.http.post('/api/orders/checkout', {}).pipe(
+    // send shipping info as body to backend
+    return this.http.post('/api/orders/checkout', shipping ?? {}).pipe(
       tap(() => { this.refreshCount(); this._orderCompleted.next(); }),
       catchError(err => { throw err; })
     );

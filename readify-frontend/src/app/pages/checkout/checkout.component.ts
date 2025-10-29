@@ -40,7 +40,7 @@ export class CheckoutComponent {
     if (!this.model.name || !this.model.address || !this.model.phone) return;
     this.processing = true;
     // Send shipping info to the backend during checkout
-    this.http.post('/api/orders/checkout', { shippingName: this.model.name, shippingAddress: this.model.address, shippingPhone: this.model.phone })
-      .subscribe({ next: () => { this.processing = false; this.cart.checkout().subscribe(() => { this.router.navigate(['/orders']); }); }, error: () => { this.processing = false; alert('Checkout failed'); } });
+    this.cart.checkout({ shippingName: this.model.name, shippingAddress: this.model.address, shippingPhone: this.model.phone })
+      .subscribe({ next: () => { this.processing = false; this.router.navigate(['/orders']); }, error: (err: any) => { this.processing = false; alert(err?.error?.message || 'Checkout failed'); } });
   }
 }
