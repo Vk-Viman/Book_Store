@@ -73,20 +73,20 @@ public static class DbInitializer
             // Ensure demo admin
             if (!await context.Users.AnyAsync(u => u.Email == demoAdminEmail))
             {
-                context.Users.Add(new User { FullName = "Demo Admin", Email = demoAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword) });
+                context.Users.Add(new User { FullName = "Demo Admin", Email = demoAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword), IsActive = true });
             }
 
             // Ensure test/admin local user with known test password
             var localAdminEmail = "admin@readify.local";
             if (!await context.Users.AnyAsync(u => u.Email == localAdminEmail))
             {
-                context.Users.Add(new User { FullName = "Local Admin", Email = localAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(testAdminPassword) });
+                context.Users.Add(new User { FullName = "Local Admin", Email = localAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(testAdminPassword), IsActive = true });
             }
 
             // Ensure demo user
             if (!await context.Users.AnyAsync(u => u.Email == demoUserEmail))
             {
-                context.Users.Add(new User { FullName = "Demo User", Email = demoUserEmail, Role = "User", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword) });
+                context.Users.Add(new User { FullName = "Demo User", Email = demoUserEmail, Role = "User", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword), IsActive = true });
             }
 
             await context.SaveChangesAsync();
