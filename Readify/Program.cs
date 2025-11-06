@@ -73,6 +73,7 @@ builder.Services.AddCors(options =>
 
 // Response caching & compression
 builder.Services.AddResponseCaching();
+builder.Services.AddMemoryCache(); // Memory cache required by AdminStatsController for caching stats
 
 // Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "";
