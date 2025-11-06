@@ -20,14 +20,14 @@ jobs:
         dotnet-version: '8.0.x'
 
     - name: Restore
-      run: dotnet restore Readify/Readify.sln
+      run: dotnet restore "Readify.sln"
 
     - name: Build
-      run: dotnet build Readify/Readify.sln --configuration Release --no-restore
+      run: dotnet build "Readify.sln" --configuration Release --no-restore
 
     - name: Run tests with coverage
       run: |
-        dotnet test Readify/Readify.sln --configuration Release --no-build --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+        dotnet test "Readify.sln" --configuration Release --no-build --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
     - name: Publish coverage report
       uses: dorny/test-reporter@v1
@@ -37,8 +37,8 @@ jobs:
         reporter: 'Cobertura'
         fail-on-error: false
 
-    - name: Upload coverage HTML
+    - name: Upload coverage artifact(s)
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-html
-        path: TestResults/**/*.coverage.opencover.xml
+        name: coverage-files
+        path: TestResults/**/coverage.opencover.xml
