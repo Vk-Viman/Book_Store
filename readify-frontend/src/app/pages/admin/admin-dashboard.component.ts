@@ -108,15 +108,36 @@ export class AdminDashboardComponent implements AfterViewInit {
 
   @ViewChild('topCanvas', { static: false }) topCanvas?: ElementRef<HTMLCanvasElement>;
 
+  private chartInstance: any | null = null;
+
   constructor(private svc: AdminDashboardService, private cd: ChangeDetectorRef) {
     this.load();
   }
 
   ngAfterViewInit(): void {
-    // attempt a render if data already present after view init
-    if (this.topProducts && this.topProducts.length > 0) {
-      // small delay to ensure canvas is painted
-      setTimeout(() => void this.renderChart(), 0);
+    // create an empty chart instance so we can update it later when data arrives
+    setTimeout(() => void this.initEmptyChart(), 0);
+  }
+
+  private async initEmptyChart() {
+    try {
+      const ChartModule = await import('chart.js/auto');
+      const Chart = (ChartModule as any).default ?? ChartModule;
+      const canvasEl: HTMLCanvasElement | undefined = this.topCanvas?.nativeElement ?? document.getElementById('topProductsChart') as HTMLCanvasElement | null ?? undefined;
+      if (!canvasEl) return;
+      const ctx = canvasEl.getContext('2d');
+      if (!ctx) return;
+      // destroy if existed
+      (canvasEl as any).__chartInstance?.destroy?.();
+      this.chartInstance = new (Chart as any)(ctx, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Quantity Sold', data: [], backgroundColor: '#3f51b5' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      });
+      (canvasEl as any).__chartInstance = this.chartInstance;
+    } catch (ex) {
+      console.warn('Failed to initialize empty chart', ex);
+      this.chartInstance = null;
     }
   }
 
@@ -124,48 +145,43 @@ export class AdminDashboardComponent implements AfterViewInit {
     this.loading = true;
     this.svc.getStats().subscribe({ next: (s) => {
         this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; /* allow view to update */ this.cd.detectChanges(); await new Promise(r => setTimeout(r, 50)); await this.renderChart(); this.loading = false; }, error: () => this.loading = false });
+        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; /* allow view to update */ this.cd.detectChanges(); await new Promise(r => setTimeout(r, 50)); this.updateChartData(); this.loading = false; }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
   }
 
-  private async renderChart() {
+  private updateChartData() {
     if (!this.topProducts || this.topProducts.length === 0) return;
     try {
-      const ChartModule = await import('chart.js/auto');
-      const Chart = (ChartModule as any).default ?? ChartModule;
+      // if an instance exists, update datasets; otherwise create one now
+      if (this.chartInstance) {
+        this.chartInstance.data.labels = this.topProducts.map(p => p.productName);
+        this.chartInstance.data.datasets[0].data = this.topProducts.map(p => p.quantitySold);
+        this.chartInstance.update();
+        this.showChart = true;
+        return;
+      }
 
-      // ensure canvas element is present
+      // try to create chart if it wasn't created earlier
       const canvasEl: HTMLCanvasElement | undefined = this.topCanvas?.nativeElement ?? document.getElementById('topProductsChart') as HTMLCanvasElement | null ?? undefined;
-      if (!canvasEl) {
-        // If canvas not found, bail and fallback to list
-        this.showChart = false;
-        console.warn('Chart canvas not found');
-        return;
-      }
+      if (!canvasEl) { this.showChart = false; return; }
 
-      const ctx = canvasEl.getContext('2d');
-      if (!ctx) {
-        this.showChart = false;
-        console.warn('Unable to get canvas context');
-        return;
-      }
-
-      const labels = this.topProducts.map(p => p.productName);
-      const data = this.topProducts.map(p => p.quantitySold);
-      // destroy previous chart instance if present
-      (canvasEl as any).__chartInstance?.destroy?.();
-
-      const chart = new (Chart as any)(ctx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Quantity Sold', data, backgroundColor: '#3f51b5' }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-      });
-
-      // store instance to allow cleanup
-      (canvasEl as any).__chartInstance = chart;
+      // create chart now
+      (async () => {
+        const ChartModule = await import('chart.js/auto');
+        const Chart = (ChartModule as any).default ?? ChartModule;
+        const ctx = canvasEl.getContext('2d');
+        if (!ctx) { this.showChart = false; return; }
+        this.chartInstance = new (Chart as any)(ctx, {
+          type: 'bar',
+          data: { labels: this.topProducts.map(p => p.productName), datasets: [{ label: 'Quantity Sold', data: this.topProducts.map(p => p.quantitySold), backgroundColor: '#3f51b5' }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+        (canvasEl as any).__chartInstance = this.chartInstance;
+        this.showChart = true;
+      })();
     } catch (ex) {
+      console.warn('Chart update failed', ex);
       this.showChart = false;
-      console.warn('Chart render failed', ex);
     }
   }
 }
