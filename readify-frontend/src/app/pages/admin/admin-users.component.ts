@@ -16,7 +16,7 @@ import { MatChipsModule } from '@angular/material/chips';
       <mat-card>
         <mat-card-title>Users</mat-card-title>
         <mat-card-content>
-          <table mat-table [dataSource]="pagedUsers" class="mat-elevation-z8" *ngIf="users.length>0">
+          <table mat-table [dataSource]="users" class="mat-elevation-z8" *ngIf="users.length>0">
             <ng-container matColumnDef="id">
               <th mat-header-cell *matHeaderCellDef>Id</th>
               <td mat-cell *matCellDef="let u">{{u.id}}</td>
@@ -35,7 +35,9 @@ import { MatChipsModule } from '@angular/material/chips';
             </ng-container>
             <ng-container matColumnDef="active">
               <th mat-header-cell *matHeaderCellDef>Active</th>
-              <td mat-cell *matCellDef="let u"><mat-chip color="primary" [selected]="u.isActive">{{u.isActive ? 'Active' : 'Disabled'}}</mat-chip></td>
+              <td mat-cell *matCellDef="let u">
+                <mat-chip [color]="u.isActive ? 'primary' : 'warn'" selected="true">{{u.isActive ? 'Active' : 'Disabled'}}</mat-chip>
+              </td>
             </ng-container>
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Actions</th>
@@ -49,7 +51,7 @@ import { MatChipsModule } from '@angular/material/chips';
             <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
           </table>
 
-          <mat-paginator [length]="users.length" [pageSize]="pageSize" (page)="onPage($event)"></mat-paginator>
+          <mat-paginator [length]="total" [pageSize]="pageSize" [pageIndex]="pageIndex" (page)="onPage($event)"></mat-paginator>
 
           <div *ngIf="users.length===0" class="text-center py-4">No users found.</div>
         </mat-card-content>
@@ -59,24 +61,25 @@ import { MatChipsModule } from '@angular/material/chips';
 })
 export class AdminUsersComponent {
   users: any[] = [];
-  pagedUsers: any[] = [];
   displayedColumns = ['id', 'email', 'name', 'role', 'active', 'actions'];
   pageSize = 10;
   pageIndex = 0;
+  total = 0;
 
   constructor(private http: HttpClient) { this.load(); }
 
-  load() { this.http.get<any[]>('/api/admin/users').subscribe({ next: (r: any[]) => { this.users = r; this.updatePage(); }, error: () => this.users = [] }); }
+  load() {
+    const page = this.pageIndex + 1;
+    this.http.get<any>(`/api/admin/users?page=${page}&pageSize=${this.pageSize}`).subscribe({ next: (r: any) => { this.users = r.items ?? []; this.total = r.total ?? 0; this.pageIndex = (r.page ?? page) - 1; this.pageSize = r.pageSize ?? this.pageSize; }, error: () => { this.users = []; this.total = 0; } });
+  }
 
-  updatePage() { this.pagedUsers = this.users.slice(this.pageIndex * this.pageSize, (this.pageIndex + 1) * this.pageSize); }
-
-  onPage(ev: any) { this.pageIndex = ev.pageIndex; this.pageSize = ev.pageSize; this.updatePage(); }
+  onPage(ev: any) { this.pageIndex = ev.pageIndex; this.pageSize = ev.pageSize; this.load(); }
 
   toggleActive(u: any) {
-    this.http.put(`/api/admin/users/${u.id}/toggle-active`, {}).subscribe({ next: () => this.load(), error: () => alert('Failed') });
+    this.http.put(`/api/admin/users/${u.id}/toggle-active`, {}).subscribe({ next: () => this.load(), error: (err) => alert(err?.error?.message || 'Failed') });
   }
 
   promote(u: any) {
-    this.http.put(`/api/admin/users/${u.id}/promote`, {}).subscribe({ next: () => this.load(), error: () => alert('Failed') });
+    this.http.put(`/api/admin/users/${u.id}/promote`, {}).subscribe({ next: () => this.load(), error: (err) => alert(err?.error?.message || 'Failed') });
   }
 }
