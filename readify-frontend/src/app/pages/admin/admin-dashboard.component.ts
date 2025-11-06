@@ -68,12 +68,19 @@ interface DashboardStats {
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
               <div class="chart-wrap">
-                <canvas #topCanvas id="topProductsChart" [hidden]="topProducts.length === 0"></canvas>
-              </div>
+                <canvas #topCanvas id="topProductsChart" [hidden]="topProducts.length === 0 || !chartReady"></canvas>
 
-              <ul *ngIf="topProducts.length>0 && !showChart" class="list-unstyled mt-2">
-                <li *ngFor="let p of topProducts">{{p.productName}} — {{p.quantitySold}}</li>
-              </ul>
+                <!-- Fallback bars when chart is not ready -->
+                <div *ngIf="topProducts.length>0 && !chartReady" class="fallback-bars">
+                  <div *ngFor="let p of topProducts" class="bar-row">
+                    <div class="bar-label">{{p.productName}}</div>
+                    <div class="bar-track">
+                      <div class="bar-fill" [style.width.%]="(p.quantitySold / maxQuantity) * 100"></div>
+                      <span class="bar-value">{{p.quantitySold}}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
             </mat-card-content>
           </mat-card>
@@ -88,13 +95,22 @@ interface DashboardStats {
     .stat-card .stat-icon mat-icon { font-size: 36px; color: var(--primary-color); }
     .stat-value { font-size: 1.6rem; font-weight: 600; }
     .stat-label { font-size: 0.85rem; color: rgba(0,0,0,0.6); }
-    .chart-wrap { position: relative; width: 100%; max-height: 360px; }
-    canvas { width: 100% !important; height: 300px !important; }
+    .chart-wrap { position: relative; width: 100%; max-height: 360px; min-height: 220px; }
+    canvas { width: 100% !important; height: 300px !important; display: block; }
+
+    /* fallback bars */
+    .fallback-bars { padding: 8px 4px 4px; }
+    .bar-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .bar-label { width: 160px; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { position: relative; flex: 1; height: 14px; background: #f1f3f5; border-radius: 7px; }
+    .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #3f51b5; border-radius: 7px; }
+    .bar-value { position: absolute; right: 6px; top: -18px; font-size: 12px; color: rgba(0,0,0,0.7); }
 
     @media (max-width: 767px) {
       .stat-value { font-size: 1.25rem; }
       .stat-card { min-width: 140px; }
       canvas { height: 220px !important; }
+      .bar-label { width: 120px; }
     }
   `]
 })
@@ -103,7 +119,9 @@ export class AdminDashboardComponent implements AfterViewInit {
   topProducts: TopProductDto[] = [];
   loading = true;
 
-  showChart = true;
+  // chart state
+  chartReady = false;
+  maxQuantity = 1;
 
   @ViewChild('topCanvas', { static: false }) topCanvas?: ElementRef<HTMLCanvasElement>;
 
@@ -114,7 +132,6 @@ export class AdminDashboardComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // defer; canvas might still be hidden initially
     setTimeout(() => void this.initEmptyChart(), 0);
   }
 
@@ -151,15 +168,22 @@ export class AdminDashboardComponent implements AfterViewInit {
     this.loading = true;
     this.svc.getStats().subscribe({ next: (s) => {
         this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; this.cd.detectChanges(); await new Promise(r => setTimeout(r, 50)); this.updateChartData(); this.loading = false; }, error: () => this.loading = false });
+        this.svc.getTopProducts().subscribe({ next: async (t) => {
+            this.topProducts = t || [];
+            this.maxQuantity = Math.max(...this.topProducts.map(p => p.quantitySold), 1);
+            this.cd.detectChanges();
+            await new Promise(r => setTimeout(r, 50));
+            this.updateChartData();
+            this.loading = false;
+          }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
   }
 
   private updateChartData() {
-    if (!this.topProducts || this.topProducts.length === 0) return;
+    if (!this.topProducts || this.topProducts.length === 0) { this.chartReady = false; return; }
     try {
       const canvasEl: HTMLCanvasElement | undefined = this.topCanvas?.nativeElement ?? document.getElementById('topProductsChart') as HTMLCanvasElement | null ?? undefined;
-      if (!canvasEl) { this.showChart = false; return; }
+      if (!canvasEl) { this.chartReady = false; return; }
       this.setExplicitCanvasSize(canvasEl);
 
       if (this.chartInstance) {
@@ -167,7 +191,9 @@ export class AdminDashboardComponent implements AfterViewInit {
         this.chartInstance.data.datasets[0].data = this.topProducts.map((p: TopProductDto) => p.quantitySold);
         this.chartInstance.update();
         this.chartInstance.resize();
-        this.showChart = true;
+        // check visible size
+        const rect = canvasEl.getBoundingClientRect();
+        this.chartReady = rect.width > 20 && rect.height > 20;
         return;
       }
 
@@ -175,7 +201,7 @@ export class AdminDashboardComponent implements AfterViewInit {
         const ChartModule = await import('chart.js/auto');
         const Chart = (ChartModule as any).default ?? ChartModule;
         const ctx = canvasEl.getContext('2d');
-        if (!ctx) { this.showChart = false; return; }
+        if (!ctx) { this.chartReady = false; return; }
         this.chartInstance = new (Chart as any)(ctx, {
           type: 'bar',
           data: { labels: this.topProducts.map(p => p.productName), datasets: [{ label: 'Quantity Sold', data: this.topProducts.map(p => p.quantitySold), backgroundColor: '#3f51b5' }] },
@@ -183,11 +209,12 @@ export class AdminDashboardComponent implements AfterViewInit {
         });
         (canvasEl as any).__chartInstance = this.chartInstance;
         this.chartInstance.resize();
-        this.showChart = true;
+        const rect = canvasEl.getBoundingClientRect();
+        this.chartReady = rect.width > 20 && rect.height > 20;
       })();
     } catch (ex) {
       console.warn('Chart update failed', ex);
-      this.showChart = false;
+      this.chartReady = false;
     }
   }
 }
