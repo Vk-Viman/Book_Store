@@ -107,6 +107,9 @@ export class AdminProductFormComponent {
 
   isNew = true;
 
+  // new property for template validation summary
+  errors: string[] = [];
+
   constructor(private fb: FormBuilder, private prodSvc: ProductService, private http: HttpClient, private route: ActivatedRoute, private router: Router, private notify: NotificationService) {
     this.form = this.fb.group({
       id: [0],
