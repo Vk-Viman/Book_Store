@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Readify.Data;
+using Readify.Models;
 
 namespace Readify.Controllers;
 
@@ -17,6 +18,109 @@ public class AdminOrdersController : ControllerBase
     {
         _context = context;
         _logger = logger;
+    }
+
+    // GET api/admin/orders
+    [HttpGet]
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] string? status = null)
+    {
+        try
+        {
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 50;
+
+            var query = _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).AsNoTracking().AsQueryable();
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                var s = status.Trim();
+                query = query.Where(o => o.OrderStatus == s || o.PaymentStatus == s || o.Status == s);
+            }
+
+            var total = await query.CountAsync();
+            var items = await query.OrderByDescending(o => o.OrderDate)
+                                   .Skip((page - 1) * pageSize)
+                                   .Take(pageSize)
+                                   .ToListAsync();
+
+            return Ok(new { items, total, page, pageSize });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list orders");
+            return StatusCode(500, new { message = "Failed to list orders" });
+        }
+    }
+
+    // GET api/admin/orders/{id}
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        try
+        {
+            var order = await _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null) return NotFound(new { message = "Order not found" });
+            return Ok(order);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get order {OrderId}", id);
+            return StatusCode(500, new { message = "Failed to get order" });
+        }
+    }
+
+    // GET api/admin/orders/user/{userId}
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUser(int userId)
+    {
+        try
+        {
+            var orders = await _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).Where(o => o.UserId == userId).ToListAsync();
+            return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get orders for user {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to get user orders" });
+        }
+    }
+
+    public class UpdateStatusDto { public string? OrderStatus { get; set; } public string? PaymentStatus { get; set; } }
+
+    // PUT api/admin/orders/update-status/{id}
+    [HttpPut("update-status/{id}")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
+    {
+        try
+        {
+            var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null) return NotFound(new { message = "Order not found" });
+
+            var changed = false;
+            if (!string.IsNullOrWhiteSpace(dto.OrderStatus) && !string.Equals(order.OrderStatus, dto.OrderStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                order.OrderStatus = dto.OrderStatus!.Trim();
+                changed = true;
+            }
+            if (!string.IsNullOrWhiteSpace(dto.PaymentStatus) && !string.Equals(order.PaymentStatus, dto.PaymentStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                order.PaymentStatus = dto.PaymentStatus!.Trim();
+                changed = true;
+            }
+
+            if (!changed) return BadRequest(new { message = "No status changes provided" });
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Updated status for order {OrderId} by admin", id);
+
+            // Optionally send email on certain transitions (not implemented here)
+
+            return Ok(order);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update order status {OrderId}", id);
+            return StatusCode(500, new { message = "Failed to update order status" });
+        }
     }
 
     // DELETE api/admin/orders/{id}

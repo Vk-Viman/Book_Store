@@ -10,6 +10,14 @@ public class Order
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = "Pending";
 
+    // New fields for Phase 5: payment and order lifecycle statuses
+    // Use strings for backward compatibility with existing frontend; values: Pending/Paid/Failed and Processing/Shipped/Delivered/Cancelled
+    public string PaymentStatus { get; set; } = "Pending";
+    public string OrderStatus { get; set; } = "Processing";
+
+    // store payment transaction id returned by payment provider (optional)
+    public string? PaymentTransactionId { get; set; }
+
     // Applied promo (optional)
     public string? PromoCode { get; set; }
     public decimal? DiscountPercent { get; set; }

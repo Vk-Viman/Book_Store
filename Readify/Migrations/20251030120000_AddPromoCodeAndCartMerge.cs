@@ -26,12 +26,42 @@ namespace Readify.Migrations
                 {
                     table.PrimaryKey("PK_PromoCodes", x => x.Id);
                 });
+
+            migrationBuilder.Sql(@"IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL BEGIN
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='PaymentStatus')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] ADD [PaymentStatus] nvarchar(64) NOT NULL DEFAULT 'Pending';
+    END
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='OrderStatus')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] ADD [OrderStatus] nvarchar(64) NOT NULL DEFAULT 'Processing';
+    END
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='PaymentTransactionId')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] ADD [PaymentTransactionId] nvarchar(200) NULL;
+    END
+END");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
                 name: "PromoCodes");
+
+            migrationBuilder.Sql(@"IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL BEGIN
+    IF EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='PaymentTransactionId')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] DROP COLUMN [PaymentTransactionId];
+    END
+    IF EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='OrderStatus')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] DROP COLUMN [OrderStatus];
+    END
+    IF EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='PaymentStatus')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] DROP COLUMN [PaymentStatus];
+    END
+END");
         }
     }
 }

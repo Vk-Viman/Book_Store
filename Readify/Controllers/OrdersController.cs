@@ -171,6 +171,8 @@ public class OrdersController : ControllerBase
                 }
 
                 // If a payment service is registered in DI, use it
+                bool paymentSucceeded = false;
+                string? paymentTxId = null;
                 try
                 {
                     var payment = HttpContext.RequestServices.GetService(typeof(IPaymentService)) as IPaymentService;
@@ -178,12 +180,14 @@ public class OrdersController : ControllerBase
                     {
                         // allow client to send a payment token in header for testing flaky/fail behaviour
                         var payToken = Request.Headers["X-Payment-Token"].FirstOrDefault();
-                        var payResult = await payment.ChargeAsync(computedTotal, token: payToken);
-                        if (!payResult)
+                        var (success, transactionId) = await payment.ChargeAsync(computedTotal, token: payToken);
+                        if (!success)
                         {
                             await tx.RollbackAsync();
                             return BadRequest(new { message = "Payment declined" });
                         }
+                        paymentSucceeded = true;
+                        paymentTxId = transactionId;
                     }
                 }
                 catch (Exception ex)
@@ -209,7 +213,11 @@ public class OrdersController : ControllerBase
                     PromoCode = string.IsNullOrWhiteSpace(dto?.PromoCode) ? null : dto.PromoCode,
                     DiscountPercent = discountPercent,
                     DiscountAmount = discountAmount,
-                    FreeShipping = freeShipping
+                    FreeShipping = freeShipping,
+                    // set payment/order status fields
+                    PaymentStatus = paymentSucceeded ? "Paid" : "Pending",
+                    OrderStatus = "Processing",
+                    PaymentTransactionId = paymentTxId
                 };
 
                 try
@@ -320,6 +328,34 @@ public class OrdersController : ControllerBase
         }
     }
 
+    // POST api/orders/create -> alias to checkout for Phase 5
+    [HttpPost("create")]
+    public Task<IActionResult> Create([FromBody] CheckoutDto dto) => Checkout(dto);
+
+    // GET api/orders/{id} - return order details for owner or admin
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetOrder(int id)
+    {
+        try
+        {
+            var userId = await GetUserIdFromClaimsAsync();
+            if (userId == null) return Unauthorized(new { message = "User not authenticated" });
+
+            var order = await _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null) return NotFound(new { message = "Order not found" });
+
+            // allow admin to view any order
+            if (order.UserId != userId.Value && !User.IsInRole("Admin")) return Forbid();
+
+            return Ok(order);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetOrder failed");
+            return StatusCode(500, new { message = "Failed to load order" });
+        }
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetOrders()
     {
@@ -341,6 +377,76 @@ public class OrdersController : ControllerBase
         {
             _logger.LogError(ex, "GetOrders failed");
             return StatusCode(500, new { message = "Failed to load orders" });
+        }
+    }
+
+    // DELETE api/orders/{id} - allow user to cancel their own order if still Processing
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> CancelOrder(int id)
+    {
+        try
+        {
+            var userId = await GetUserIdFromClaimsAsync();
+            if (userId == null) return Unauthorized(new { message = "User not authenticated" });
+
+            var order = await _context.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == id);
+            if (order == null) return NotFound(new { message = "Order not found" });
+
+            // allow admins to delete via admin controller; here only owners can cancel
+            if (order.UserId != userId.Value && !User.IsInRole("Admin")) return Forbid();
+
+            if (order.OrderStatus != "Processing")
+            {
+                return BadRequest(new { message = "Only orders in 'Processing' state can be cancelled." });
+            }
+
+            // mark as cancelled
+            order.OrderStatus = "Cancelled";
+
+            // If payment was taken, try to refund (best-effort)
+            if (string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var payment = HttpContext.RequestServices.GetService(typeof(IPaymentService)) as IPaymentService;
+                    if (payment != null)
+                    {
+                        var refunded = await payment.RefundAsync(order.TotalAmount, order.PaymentTransactionId);
+                        order.PaymentStatus = refunded ? "Refunded" : "Refund Failed";
+                    }
+                    else
+                    {
+                        order.PaymentStatus = "Paid"; // leave as Paid if no payment service available
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Refund failed for order {OrderId}", id);
+                    order.PaymentStatus = "Refund Failed";
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Order {OrderId} cancelled by user {UserId}", id, userId.Value);
+
+            // send optional email
+            try
+            {
+                var user = await _context.Users.FindAsync(order.UserId);
+                var emailTo = user?.Email ?? string.Empty;
+                _ = _email.SendTemplateAsync(emailTo, "OrderCancelled", new { OrderId = order.Id });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send cancellation email for order {OrderId}", order.Id);
+            }
+
+            return Ok(order);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CancelOrder failed");
+            return StatusCode(500, new { message = "Failed to cancel order" });
         }
     }
 }

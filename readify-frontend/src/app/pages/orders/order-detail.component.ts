@@ -16,7 +16,9 @@ import { LocalDatePipe } from '../../pipes/local-date.pipe';
     <button class="btn btn-link mb-2" (click)="back()">← Back to orders</button>
     <mat-card *ngIf="order">
       <mat-card-title>Order #{{ order.id }} — {{ order.orderDate | localDate:'medium' }}</mat-card-title>
-      <mat-card-subtitle>Status: {{ order.status }} — Total: {{ order.totalAmount | currency }}</mat-card-subtitle>
+      <mat-card-subtitle>
+        Status: {{ order.orderStatus }} — Payment: {{ order.paymentStatus }} — Total: {{ order.totalAmount | currency }}
+      </mat-card-subtitle>
       <mat-card-content class="mt-2">
         <h5>Shipping</h5>
         <p *ngIf="order.shippingName"><strong>Name:</strong> {{ order.shippingName }}</p>
@@ -32,6 +34,10 @@ import { LocalDatePipe } from '../../pipes/local-date.pipe';
             </div>
           </mat-list-item>
         </mat-list>
+
+        <div class="mt-3" *ngIf="order.orderStatus==='Processing'">
+          <button class="btn btn-danger" (click)="cancel()">Cancel order</button>
+        </div>
 
         <div *ngIf="isDev" class="mt-3">
           <button class="btn btn-danger" (click)="deleteOrder()">Delete Order (dev only)</button>
@@ -60,6 +66,11 @@ export class OrderDetailComponent {
     this.loading = true;
     const id = Number(this.route.snapshot.paramMap.get('id'));
     this.cart.getOrders().subscribe({ next: (res: any) => { this.order = (res || []).find((o: any) => o.id === id) ?? null; this.loading = false; }, error: () => { this.loading = false; } });
+  }
+
+  cancel() {
+    if (!confirm('Cancel this order?')) return;
+    this.cart.cancelOrder(this.order.id).subscribe({ next: (res: any) => { alert('Order cancelled'); this.load(); }, error: (err: any) => alert(err?.error?.message || 'Failed to cancel') });
   }
 
   deleteOrder() {

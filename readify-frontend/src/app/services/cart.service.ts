@@ -171,6 +171,19 @@ export class CartService {
     );
   }
 
+  // Cancel an order for the current user or admin can cancel any order
+  cancelOrder(orderId: number): Observable<any> {
+    const token = this.auth.getToken();
+    if (!token) {
+      // cannot cancel server orders while offline; simulate removal for local-only orders
+      return from([null]);
+    }
+    return this.http.delete(`/api/orders/${orderId}`).pipe(
+      tap(() => { this.refreshCount(); this._orderCompleted.next(); }),
+      catchError(err => { throw err; })
+    );
+  }
+
   getOrders(): Observable<any[]> {
     const token = this.auth.getToken();
     if (!token) return from([[]]);
