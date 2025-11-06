@@ -17,7 +17,7 @@ interface DashboardStats {
   imports: [CommonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule],
   template: `
     <div class="container mt-4">
-      <h2 class="mb-4">
+      <h2 class="mb-4 d-flex align-items-center">
         <mat-icon class="me-2">dashboard</mat-icon>
         Admin Dashboard
       </h2>
@@ -26,56 +26,52 @@ interface DashboardStats {
         <mat-spinner></mat-spinner>
       </div>
 
-      <div *ngIf="!loading" class="row">
-        <div class="col-md-4 mb-4">
-          <mat-card class="stat-card orders">
-            <mat-card-content>
-              <div class="stat-icon">
-                <mat-icon>receipt_long</mat-icon>
-              </div>
+      <div *ngIf="!loading" class="stats-row d-flex flex-wrap gap-3 mb-3">
+        <mat-card class="stat-card">
+          <mat-card-content class="d-flex align-items-center gap-3">
+            <div class="stat-icon"><mat-icon>receipt_long</mat-icon></div>
+            <div>
               <div class="stat-value">{{ stats.totalOrders }}</div>
               <div class="stat-label">Total Orders</div>
-            </mat-card-content>
-          </mat-card>
-        </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
 
-        <div class="col-md-4 mb-4">
-          <mat-card class="stat-card users">
-            <mat-card-content>
-              <div class="stat-icon">
-                <mat-icon>people</mat-icon>
-              </div>
+        <mat-card class="stat-card">
+          <mat-card-content class="d-flex align-items-center gap-3">
+            <div class="stat-icon"><mat-icon>people</mat-icon></div>
+            <div>
               <div class="stat-value">{{ stats.totalUsers }}</div>
               <div class="stat-label">Total Users</div>
-            </mat-card-content>
-          </mat-card>
-        </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
 
-        <div class="col-md-4 mb-4">
-          <mat-card class="stat-card sales">
-            <mat-card-content>
-              <div class="stat-icon">
-                <mat-icon>attach_money</mat-icon>
-              </div>
+        <mat-card class="stat-card">
+          <mat-card-content class="d-flex align-items-center gap-3">
+            <div class="stat-icon"><mat-icon>attach_money</mat-icon></div>
+            <div>
               <div class="stat-value">{{ stats.totalSales | currency }}</div>
               <div class="stat-label">Total Sales</div>
-            </mat-card-content>
-          </mat-card>
-        </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
       </div>
 
       <div *ngIf="!loading" class="row">
-        <div class="col-md-12">
+        <div class="col-12">
           <mat-card>
             <mat-card-header>
               <mat-card-title>Top Products</mat-card-title>
             </mat-card-header>
             <mat-card-content>
-              <div *ngIf="topProducts.length === 0" class="text-muted">No sales data yet.</div>
+              <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
-              <canvas *ngIf="topProducts.length>0" id="topProductsChart"></canvas>
+              <div class="chart-wrap" *ngIf="topProducts.length>0">
+                <canvas id="topProductsChart"></canvas>
+              </div>
 
-              <ul *ngIf="topProducts.length>0 && !showChart" class="list-unstyled">
+              <ul *ngIf="topProducts.length>0 && !showChart" class="list-unstyled mt-2">
                 <li *ngFor="let p of topProducts">{{p.productName}} — {{p.quantitySold}}</li>
               </ul>
 
@@ -87,8 +83,19 @@ interface DashboardStats {
     </div>
   `,
   styles: [`
+    .stats-row { align-items: stretch; }
+    .stat-card { flex: 1 1 220px; min-width: 200px; max-width: 360px; }
+    .stat-card .stat-icon mat-icon { font-size: 36px; color: var(--primary-color); }
+    .stat-value { font-size: 1.6rem; font-weight: 600; }
+    .stat-label { font-size: 0.85rem; color: rgba(0,0,0,0.6); }
+    .chart-wrap { position: relative; width: 100%; max-height: 360px; }
     canvas { width: 100% !important; height: 300px !important; }
-    @media (max-width:600px) { .stat-value { font-size: 1.6rem; } }
+
+    @media (max-width: 767px) {
+      .stat-value { font-size: 1.25rem; }
+      .stat-card { min-width: 140px; }
+      canvas { height: 220px !important; }
+    }
   `]
 })
 export class AdminDashboardComponent {
@@ -120,10 +127,9 @@ export class AdminDashboardComponent {
       new Chart(ctx!, {
         type: 'bar',
         data: { labels, datasets: [{ label: 'Quantity Sold', data, backgroundColor: '#3f51b5' }] },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
       });
     } catch (ex) {
-      // fallback - don't break the UI
       this.showChart = false;
       console.warn('Chart render failed', ex);
     }

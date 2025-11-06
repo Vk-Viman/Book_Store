@@ -19,6 +19,11 @@ import { NotificationService } from '../../services/notification.service';
      mat-card { overflow: visible; padding: 16px; }
      .order-link { text-decoration: none; color: inherit; display: block; padding: 8px 0; }
      .orders-card { max-width: 900px; }
+     /* small screen: present orders as stacked cards */
+     @media (max-width: 767px) {
+       mat-list-item { display: block; }
+       .order-link { display: block; padding: 12px; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); margin-bottom: 8px; }
+     }
     `
   ],
   template: `
@@ -31,9 +36,15 @@ import { NotificationService } from '../../services/notification.service';
         <mat-list *ngIf="!loading && orders.length>0">
           <mat-list-item *ngFor="let o of orders">
             <a [routerLink]="['/orders', o.id]" class="order-link">
-              <div style="width:100%">
-                <div class="order-title">Order #{{ o.id }} - {{ o.createdAt | localDate:'medium' }}</div>
-                <div class="order-meta">Total: {{ o.total | currency }} — Status: {{ o.status }}</div>
+              <div style="width:100%" class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="order-title">Order #{{ o.id }}</div>
+                  <div class="order-meta">{{ o.createdAt | localDate:'medium' }}</div>
+                </div>
+                <div class="text-end">
+                  <div class="order-meta">{{ o.status }}</div>
+                  <div class="order-title">{{ o.total | currency }}</div>
+                </div>
               </div>
             </a>
           </mat-list-item>

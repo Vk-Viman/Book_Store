@@ -13,69 +13,79 @@ import { HttpClient } from '@angular/common/http';
   <div class="container mt-4">
     <h2>Checkout</h2>
     <form #f="ngForm" (ngSubmit)="submit()">
-      <div class="mb-3">
-        <label class="form-label">Full name</label>
-        <input name="name" [(ngModel)]="model.name" required class="form-control" />
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Address</label>
-        <textarea name="address" [(ngModel)]="model.address" required class="form-control"></textarea>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Phone</label>
-        <input name="phone" [(ngModel)]="model.phone" required class="form-control" />
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Shipping region</label>
-        <select class="form-select" [(ngModel)]="selectedRegion" name="region" (change)="onRegionChange()">
-          <option *ngFor="let r of shippingRegions" [value]="r.key">{{ r.label }}</option>
-        </select>
-        <div class="form-text">Shipping rate will be computed server-side for the selected region.</div>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Promo code (optional)</label>
-        <div class="input-group">
-          <input name="promo" [(ngModel)]="promoCode" class="form-control" placeholder="Enter promo code" />
-          <button type="button" class="btn btn-outline-secondary" (click)="validatePromo()" [disabled]="validatingPromo">Apply</button>
-        </div>
-        <div *ngIf="promoValid" class="text-success small mt-1">Valid promo: {{ promoValidMessage }}</div>
-        <div *ngIf="promoError" class="text-danger small mt-1">{{ promoError }}</div>
-      </div>
-
-      <div class="mb-3">
-        <h5>Order summary</h5>
-        <div *ngIf="items?.length === 0" class="text-muted">Your cart is empty.</div>
-
-        <div *ngFor="let it of items; trackBy: trackByProduct" class="d-flex justify-content-between align-items-center py-2 border-bottom">
-          <div>
-            <div><strong>{{ it.product?.title || 'Item' }}</strong></div>
-            <div class="text-muted small">{{ it.product?.authors }}</div>
+      <div class="row">
+        <div class="col-md-6">
+          <div class="mb-3">
+            <label class="form-label">Full name</label>
+            <input name="name" [(ngModel)]="model.name" required class="form-control" />
           </div>
-          <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary" type="button" (click)="changeQty(it.productId, it.quantity - 1)">-</button>
-            <input type="number" class="form-control form-control-sm" style="width:80px" [value]="it.quantity" (change)="onInputChange(it.productId, $event)" />
-            <button class="btn btn-sm btn-outline-secondary" type="button" (click)="changeQty(it.productId, it.quantity + 1)">+</button>
-            <div class="text-end" style="min-width:140px;">
-              <div>{{ it.quantity }} × {{ formatCurrency(it.product?.price ?? it.unitPrice ?? 0) }}</div>
-              <div><strong>{{ formatCurrency((it.product?.price ?? it.unitPrice ?? 0) * it.quantity) }}</strong></div>
+          <div class="mb-3">
+            <label class="form-label">Address</label>
+            <textarea name="address" [(ngModel)]="model.address" required class="form-control"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Phone</label>
+            <input name="phone" [(ngModel)]="model.phone" required class="form-control" />
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Shipping region</label>
+            <select class="form-select" [(ngModel)]="selectedRegion" name="region" (change)="onRegionChange()">
+              <option *ngFor="let r of shippingRegions" [value]="r.key">{{ r.label }}</option>
+            </select>
+            <div class="form-text">Shipping rate will be computed server-side for the selected region.</div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Promo code (optional)</label>
+            <div class="input-group">
+              <input name="promo" [(ngModel)]="promoCode" class="form-control" placeholder="Enter promo code" />
+              <button type="button" class="btn btn-outline-secondary" (click)="validatePromo()" [disabled]="validatingPromo">Apply</button>
+            </div>
+            <div *ngIf="promoValid" class="text-success small mt-1">Valid promo: {{ promoValidMessage }}</div>
+            <div *ngIf="promoError" class="text-danger small mt-1">{{ promoError }}</div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card summary-card p-3">
+            <h5>Order summary</h5>
+            <div *ngIf="items?.length === 0" class="text-muted">Your cart is empty.</div>
+
+            <div *ngFor="let it of items; trackBy: trackByProduct" class="d-flex justify-content-between align-items-center py-2 border-bottom">
+              <div>
+                <div><strong>{{ it.product?.title || 'Item' }}</strong></div>
+                <div class="text-muted small">{{ it.product?.authors }}</div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <div class="text-end" style="min-width:120px;">
+                  <div>{{ it.quantity }} × {{ formatCurrency(it.product?.price ?? it.unitPrice ?? 0) }}</div>
+                  <div><strong>{{ formatCurrency((it.product?.price ?? it.unitPrice ?? 0) * it.quantity) }}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-2 d-flex justify-content-between"><div>Subtotal</div><div>{{ formatCurrency(rawTotal) }}</div></div>
+            <div class="d-flex justify-content-between" *ngIf="discountAmount > 0"><div>Discount {{ promoValidMessage }}</div><div>-{{ formatCurrency(discountAmount) }}</div></div>
+            <div class="d-flex justify-content-between" *ngIf="promoType === 'FreeShipping'"><div>Shipping</div><div class="text-success">Free</div></div>
+            <div class="d-flex justify-content-between" *ngIf="promoType !== 'FreeShipping'"><div>Shipping</div><div>{{ formatCurrency(shippingRate) }}</div></div>
+            <hr />
+            <div class="d-flex justify-content-between"><div><strong>Total</strong></div><div><strong>{{ formatCurrency(discountedTotal) }}</strong></div></div>
+
+            <div class="mt-3 text-end">
+              <button class="btn btn-primary" [disabled]="processing">Pay (Mock)</button>
             </div>
           </div>
         </div>
-
-        <div class="mt-2 d-flex justify-content-between"><div>Subtotal</div><div>{{ formatCurrency(rawTotal) }}</div></div>
-        <div class="d-flex justify-content-between" *ngIf="discountAmount > 0"><div>Discount {{ promoValidMessage }}</div><div>-{{ formatCurrency(discountAmount) }}</div></div>
-        <div class="d-flex justify-content-between" *ngIf="promoType === 'FreeShipping'"><div>Shipping</div><div class="text-success">Free</div></div>
-        <div class="d-flex justify-content-between" *ngIf="promoType !== 'FreeShipping'"><div>Shipping</div><div>{{ formatCurrency(shippingRate) }}</div></div>
-        <hr />
-        <div class="d-flex justify-content-between"><div><strong>Total</strong></div><div><strong>{{ formatCurrency(discountedTotal) }}</strong></div></div>
       </div>
-
-      <button class="btn btn-primary" [disabled]="processing">Pay (Mock)</button>
     </form>
   </div>
-  `
+  `,
+  styles: [
+    `.summary-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+     @media (max-width:767px) { .summary-card { margin-top: 16px; } }
+    `
+  ]
 })
 export class CheckoutComponent implements OnInit {
   model = { name: '', address: '', phone: '' };

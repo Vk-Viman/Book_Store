@@ -14,38 +14,57 @@ import { LocalDatePipe } from '../../pipes/local-date.pipe';
   template: `
   <div class="container mt-4">
     <button class="btn btn-link mb-2" (click)="back()">← Back to orders</button>
-    <mat-card *ngIf="order">
+    <mat-card *ngIf="order" class="order-detail-card">
       <mat-card-title>Order #{{ order.id }} — {{ order.createdAt | localDate:'medium' }}</mat-card-title>
-      <mat-card-subtitle>
-        Status: {{ order.status }} — Total: {{ order.total | currency }}
-      </mat-card-subtitle>
+      <mat-card-subtitle class="mb-2">Status: <strong>{{ order.status }}</strong></mat-card-subtitle>
       <mat-card-content class="mt-2">
-        <h5>Shipping</h5>
-        <p *ngIf="order.shippingName"><strong>Name:</strong> {{ order.shippingName }}</p>
-        <p *ngIf="order.shippingAddress"><strong>Address:</strong> {{ order.shippingAddress }}</p>
-        <p *ngIf="order.shippingPhone"><strong>Phone:</strong> {{ order.shippingPhone }}</p>
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Shipping</h6>
+            <p *ngIf="order.shippingName"><strong>Name:</strong> {{ order.shippingName }}</p>
+            <p *ngIf="order.shippingAddress"><strong>Address:</strong> {{ order.shippingAddress }}</p>
+            <p *ngIf="order.shippingPhone"><strong>Phone:</strong> {{ order.shippingPhone }}</p>
+          </div>
+          <div class="col-md-6 text-md-end mt-3 mt-md-0">
+            <h6>Payment</h6>
+            <p *ngIf="order.paymentTransactionId"><strong>Transaction:</strong> {{ order.paymentTransactionId }}</p>
+            <p><strong>Total:</strong> {{ order.total | currency }}</p>
+          </div>
+        </div>
 
         <h5 class="mt-3">Items</h5>
         <mat-list *ngIf="order.items?.length>0">
           <mat-list-item *ngFor="let it of order.items">
-            <div style="width:100%">
-              <div><strong>{{ it.productName || ('Product #' + it.productId) }}</strong></div>
-              <div class="text-muted">Qty: {{ it.quantity }} — Unit: {{ it.unitPrice | currency }} — Line: {{ (it.quantity * it.unitPrice) | currency }}</div>
+            <div style="width:100%" class="d-flex justify-content-between align-items-center">
+              <div>
+                <div><strong>{{ it.productName || ('Product #' + it.productId) }}</strong></div>
+                <div class="text-muted small">Qty: {{ it.quantity }} — Unit: {{ it.unitPrice | currency }}</div>
+              </div>
+              <div class="text-end"><strong>{{ (it.quantity * it.unitPrice) | currency }}</strong></div>
             </div>
           </mat-list-item>
         </mat-list>
 
-        <div class="mt-3" *ngIf="order.status==='Processing'">
-          <button class="btn btn-danger" (click)="cancel()">Cancel order</button>
-        </div>
-
       </mat-card-content>
+
+      <mat-card-actions class="d-flex justify-content-between align-items-center mt-3">
+        <div>
+          <button *ngIf="order.status==='Processing'" class="btn btn-danger me-2" (click)="cancel()">Cancel order</button>
+        </div>
+        <div class="text-muted small">Order ID: {{ order.id }}</div>
+      </mat-card-actions>
     </mat-card>
 
     <div *ngIf="!order && !loading" class="text-center mt-4">Order not found.</div>
     <div *ngIf="loading" class="text-center mt-4">Loading...</div>
   </div>
-  `
+  `,
+  styles: [
+    `.order-detail-card { padding-bottom: 0; }
+     mat-card-actions { padding: 12px 16px; }
+     @media (max-width:767px) { .text-md-end { text-align: left !important; } }
+    `
+  ]
 })
 export class OrderDetailComponent {
   order: any = null;
