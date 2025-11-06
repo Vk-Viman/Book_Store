@@ -55,7 +55,6 @@ Readify is a full-stack bookstore management application built with **ASP.NET Co
 - Image validation and optimization
 - Error handling middleware
 - xUnit unit/integration tests
-- Cypress E2E tests
 - Docker support with multi-stage builds
 - CI/CD with GitHub Actions
 
@@ -135,17 +134,6 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-### Frontend E2E Tests
-```bash
-cd readify-frontend
-
-# Interactive mode
-npx cypress open
-
-# Headless mode
-npx cypress run
-```
-
 ## ?? Docker
 
 ### Build Images
@@ -182,7 +170,7 @@ docker build -f readify-frontend/Dockerfile -t readify-frontend:latest .
 - **State Management:** RxJS Observables
 - **HTTP Client:** Angular HttpClient with interceptors
 - **Routing:** Angular Router with lazy loading
-- **Testing:** Cypress E2E
+- **Testing:** Unit tests (Karma/Jasmine)
 - **Build:** Angular CLI with esbuild
 
 ### Key Design Patterns
@@ -301,7 +289,6 @@ Readify/
 ### CI/CD Pipeline (GitHub Actions)
 - Automated builds on push/PR
 - Runs backend tests
-- Runs frontend E2E tests
 - Builds & pushes Docker images to Docker Hub
 
 ### Environment Variables (Secrets)
