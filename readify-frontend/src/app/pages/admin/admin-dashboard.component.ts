@@ -157,6 +157,8 @@ export class AdminDashboardComponent implements AfterViewInit {
         this.chartInstance.data.labels = this.topProducts.map(p => p.productName);
         this.chartInstance.data.datasets[0].data = this.topProducts.map(p => p.quantitySold);
         this.chartInstance.update();
+        // ensure Chart.js recalculates sizes after canvas was possibly hidden
+        setTimeout(() => { try { this.chartInstance.resize(); } catch (_) { } }, 50);
         this.showChart = true;
         return;
       }
@@ -177,6 +179,8 @@ export class AdminDashboardComponent implements AfterViewInit {
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
         (canvasEl as any).__chartInstance = this.chartInstance;
+        // resize after a tick so layout is settled
+        setTimeout(() => { try { this.chartInstance.resize(); } catch (_) { } }, 50);
         this.showChart = true;
       })();
     } catch (ex) {
