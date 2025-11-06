@@ -169,18 +169,26 @@ public class OrdersController : ControllerBase
                         return BadRequest(new { message = $"Insufficient stock for product '{c.Product.Title}'. Available: {c.Product.StockQty}, requested: {c.Quantity}" });
                     }
 
-                    // Also update the tracked product entity so SaveChanges doesn't overwrite the DB change
+                    // Do NOT modify the tracked product entity here or mark it modified —
+                    // we updated the DB already with raw SQL. Instead, we'll reload the
+                    // tracked product entity below so its RowVersion and StockQty are
+                    // in sync with the database before SaveChanges.
+                }
+
+                // Refresh tracked product entities so EF won't try to overwrite DB changes
+                foreach (var c in cartItems)
+                {
                     try
                     {
                         if (c.Product != null)
                         {
-                            c.Product.StockQty = Math.Max(0, c.Product.StockQty - c.Quantity);
-                            _context.Entry(c.Product).Property(p => p.StockQty).IsModified = true;
+                            // Reload the product navigation to refresh current values (RowVersion, StockQty)
+                            await _context.Entry(c.Product).ReloadAsync();
                         }
                     }
                     catch
                     {
-                        // best-effort, ignore if tracking not available
+                        // best-effort: ignore reload failures and let SaveChanges handle potential conflicts
                     }
                 }
 
@@ -306,6 +314,20 @@ public class OrdersController : ControllerBase
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "Failed to send order confirmation email for order {OrderId}", order.Id);
+                    }
+
+                    // audit log
+                    try
+                    {
+                        var audit = HttpContext.RequestServices.GetService(typeof(IAuditService)) as IAuditService;
+                        if (audit != null)
+                        {
+                            await audit.WriteAsync("OrderCreated", "Order", order.Id, $"Order {order.Id} created by user {userId}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to write audit log for order {OrderId}", order.Id);
                     }
 
                     return Ok(savedOrder);
@@ -455,12 +477,58 @@ public class OrdersController : ControllerBase
                 _logger.LogWarning(ex, "Failed to send cancellation email for order {OrderId}", order.Id);
             }
 
+            // audit log
+            try
+            {
+                var audit = HttpContext.RequestServices.GetService(typeof(IAuditService)) as IAuditService;
+                if (audit != null)
+                {
+                    await audit.WriteAsync("OrderStatusChanged", "Order", order.Id, $"Order {order.Id} cancelled by user {userId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to write audit log for order {OrderId}", order.Id);
+            }
+
             return Ok(order);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "CancelOrder failed");
             return StatusCode(500, new { message = "Failed to cancel order" });
+        }
+    }
+
+    // GET api/orders/me
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMyOrders()
+    {
+        try
+        {
+            var userId = await GetUserIdFromClaimsAsync();
+            if (userId == null) return Unauthorized(new { message = "User not authenticated" });
+
+            var orders = await _context.Orders
+                .Where(o => o.UserId == userId.Value)
+                .Include(o => o.Items).ThenInclude(i => i.Product)
+                .OrderByDescending(o => o.OrderDate)
+                .ToListAsync();
+
+            var dtos = orders.Select(o => new OrderSummaryDto
+            {
+                Id = o.Id,
+                CreatedAt = o.OrderDate,
+                Status = o.OrderStatus,
+                Total = o.TotalAmount
+            }).ToList();
+
+            return Ok(dtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetMyOrders failed");
+            return StatusCode(500, new { message = "Failed to load orders" });
         }
     }
 }
