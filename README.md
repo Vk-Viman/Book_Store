@@ -2,6 +2,8 @@
 
 This repository contains the Readify sample app (ASP.NET Core backend + Angular frontend). The project is intentionally *not* published to GitHub Pages or any hosted environment by default. The instructions below show how to run everything locally for development and testing.
 
+> CI note: The repository CI is configured to run only pure unit tests (no integration or E2E tests). Integration tests that require SQL Server / external services were removed from automated CI to keep the pipeline lightweight for portfolio use.
+
 ## Prerequisites
 - .NET 8 SDK
 - Node.js 20+ and npm
@@ -69,11 +71,11 @@ This repository contains the Readify sample app (ASP.NET Core backend + Angular 
    This runs the backend and the Angular dev server together.
 
 ## Running Tests
-- Backend unit/integration tests (xUnit):
+- Unit tests (xUnit):
 
   ```bash
-  cd Readify.Tests
-  dotnet test
+  # repository root
+  dotnet test Readify.UnitTests/Readify.UnitTests.csproj
   ```
 
   To collect coverage locally:
@@ -100,17 +102,16 @@ This repository contains the Readify sample app (ASP.NET Core backend + Angular 
 
 ## Notes about Deployment
 - GitHub Pages serves only static sites. The ASP.NET Core backend cannot be hosted on GitHub Pages.
-- This repository previously had CI workflows for testing. No automatic publishing to Pages or any host is configured by default in this repo.
-- If you decide later to publish the frontend only, add a GitHub Actions workflow to build the Angular app and publish the `dist` directory to a `gh-pages` branch.
+- This repository is configured as a portfolio artifact and CI is intentionally limited to unit tests.
 
 ## Quick Start Summary
 1. Ensure prerequisites are installed.
 2. Configure connection string (if necessary).
 3. From `Readify/`, run migrations then `dotnet run`.
 4. From `readify-frontend/`, run `npm ci` and `npm start` (or `npm run dev` for both).
-5. Run tests with `dotnet test` and `npm test` as needed.
+5. Run unit tests with `dotnet test` and `npm test` as needed.
 
 ---
 If you want, I can also:
-- Add a short shell/batch script to start both backend and frontend with one command.
-- Remove any CI workflows that attempt to deploy the app (CI test workflow remains useful).
+- Add a short shell/batch script to start backend + frontend with one command.
+- Remove any remaining test files or adjust test projects.
