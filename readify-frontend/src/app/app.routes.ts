@@ -24,6 +24,8 @@ export const routes: Routes = [
 
   // Admin area
   { path: 'admin/dashboard', loadComponent: () => import('./pages/admin/admin-dashboard.component').then(m => m.AdminDashboardComponent), canActivate: [adminGuard] },
+  { path: 'admin/orders', loadComponent: () => import('./pages/admin/admin-orders.component').then(m => m.AdminOrdersComponent), canActivate: [adminGuard] },
+  { path: 'admin/users', loadComponent: () => import('./pages/admin/admin-users.component').then(m => m.AdminUsersComponent), canActivate: [adminGuard] },
   { path: 'admin/products', loadComponent: () => import('./pages/admin/product-list.component').then(m => m.AdminProductListComponent), canActivate: [adminGuard] },
   { path: 'admin/products/new', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [adminGuard] },
   { path: 'admin/products/:id', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [adminGuard] },
