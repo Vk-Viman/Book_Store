@@ -1,15 +1,14 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AdminDashboardService, TopProductDto } from './admin-dashboard.service';
 
 interface DashboardStats {
-  totalProducts: number;
   totalUsers: number;
-  totalCategories: number;
-  recentAudits: number;
+  totalOrders: number;
+  totalSales: number;
 }
 
 @Component({
@@ -28,19 +27,19 @@ interface DashboardStats {
       </div>
 
       <div *ngIf="!loading" class="row">
-        <div class="col-md-3 mb-4">
-          <mat-card class="stat-card products">
+        <div class="col-md-4 mb-4">
+          <mat-card class="stat-card orders">
             <mat-card-content>
               <div class="stat-icon">
-                <mat-icon>inventory_2</mat-icon>
+                <mat-icon>receipt_long</mat-icon>
               </div>
-              <div class="stat-value">{{ stats.totalProducts }}</div>
-              <div class="stat-label">Total Products</div>
+              <div class="stat-value">{{ stats.totalOrders }}</div>
+              <div class="stat-label">Total Orders</div>
             </mat-card-content>
           </mat-card>
         </div>
 
-        <div class="col-md-3 mb-4">
+        <div class="col-md-4 mb-4">
           <mat-card class="stat-card users">
             <mat-card-content>
               <div class="stat-icon">
@@ -52,26 +51,14 @@ interface DashboardStats {
           </mat-card>
         </div>
 
-        <div class="col-md-3 mb-4">
-          <mat-card class="stat-card categories">
+        <div class="col-md-4 mb-4">
+          <mat-card class="stat-card sales">
             <mat-card-content>
               <div class="stat-icon">
-                <mat-icon>category</mat-icon>
+                <mat-icon>attach_money</mat-icon>
               </div>
-              <div class="stat-value">{{ stats.totalCategories }}</div>
-              <div class="stat-label">Categories</div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-
-        <div class="col-md-3 mb-4">
-          <mat-card class="stat-card audits">
-            <mat-card-content>
-              <div class="stat-icon">
-                <mat-icon>history</mat-icon>
-              </div>
-              <div class="stat-value">{{ stats.recentAudits }}</div>
-              <div class="stat-label">Recent Actions</div>
+              <div class="stat-value">{{ stats.totalSales | currency }}</div>
+              <div class="stat-label">Total Sales</div>
             </mat-card-content>
           </mat-card>
         </div>
@@ -81,75 +68,64 @@ interface DashboardStats {
         <div class="col-md-12">
           <mat-card>
             <mat-card-header>
-              <mat-card-title>Quick Actions</mat-card-title>
+              <mat-card-title>Top Products</mat-card-title>
             </mat-card-header>
             <mat-card-content>
-              <p>Admin dashboard with statistics and recent activity.</p>
-              <p class="text-muted">More features coming soon: charts, recent orders, user activity, etc.</p>
+              <div *ngIf="topProducts.length === 0" class="text-muted">No sales data yet.</div>
+
+              <canvas *ngIf="topProducts.length>0" id="topProductsChart"></canvas>
+
+              <ul *ngIf="topProducts.length>0 && !showChart" class="list-unstyled">
+                <li *ngFor="let p of topProducts">{{p.productName}} — {{p.quantitySold}}</li>
+              </ul>
+
             </mat-card-content>
           </mat-card>
         </div>
       </div>
+
     </div>
   `,
   styles: [`
-    .stat-card {
-      text-align: center;
-      transition: transform 0.2s;
-      cursor: pointer;
-    }
-    .stat-card:hover {
-      transform: translateY(-4px);
-    }
-    .stat-card.products { border-top: 4px solid #3f51b5; }
-    .stat-card.users { border-top: 4px solid #4caf50; }
-    .stat-card.categories { border-top: 4px solid #ff9800; }
-    .stat-card.audits { border-top: 4px solid #f44336; }
-    .stat-icon mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 8px;
-    }
-    .stat-card.products .stat-icon { color: #3f51b5; }
-    .stat-card.users .stat-icon { color: #4caf50; }
-    .stat-card.categories .stat-icon { color: #ff9800; }
-    .stat-card.audits .stat-icon { color: #f44336; }
-    .stat-value {
-      font-size: 2.5rem;
-      font-weight: 600;
-      margin: 8px 0;
-    }
-    .stat-label {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
+    canvas { width: 100% !important; height: 300px !important; }
+    @media (max-width:600px) { .stat-value { font-size: 1.6rem; } }
   `]
 })
 export class AdminDashboardComponent {
-  stats: DashboardStats = {
-    totalProducts: 0,
-    totalUsers: 0,
-    totalCategories: 0,
-    recentAudits: 0
-  };
+  stats: DashboardStats = { totalUsers: 0, totalOrders: 0, totalSales: 0 };
+  topProducts: TopProductDto[] = [];
   loading = true;
 
-  constructor(private http: HttpClient) {
-    this.loadStats();
+  showChart = true;
+
+  constructor(private svc: AdminDashboardService) {
+    this.load();
   }
 
-  loadStats() {
-    this.http.get<DashboardStats>('/api/admin/dashboard/stats').subscribe({
-      next: (data: DashboardStats) => {
-        this.stats = data;
-        this.loading = false;
-      },
-      error: (_err: any) => {
-        this.loading = false;
-      }
-    });
+  async load() {
+    this.loading = true;
+    this.svc.getStats().subscribe({ next: (s) => {
+        this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
+        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; await this.renderChart(); this.loading = false; }, error: () => this.loading = false });
+      }, error: () => { this.loading = false; } });
+  }
+
+  private async renderChart() {
+    if (!this.topProducts || this.topProducts.length === 0) return;
+    try {
+      const Chart = (await import('chart.js/auto')).default;
+      const ctx = (document.getElementById('topProductsChart') as HTMLCanvasElement).getContext('2d');
+      const labels = this.topProducts.map(p => p.productName);
+      const data = this.topProducts.map(p => p.quantitySold);
+      new Chart(ctx!, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Quantity Sold', data, backgroundColor: '#3f51b5' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    } catch (ex) {
+      // fallback - don't break the UI
+      this.showChart = false;
+      console.warn('Chart render failed', ex);
+    }
   }
 }
