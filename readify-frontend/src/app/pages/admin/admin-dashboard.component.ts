@@ -68,7 +68,7 @@ interface DashboardStats {
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
               <div class="chart-wrap">
-                <canvas #topCanvas id="topProductsChart" [hidden]="topProducts.length === 0 || !chartReady"></canvas>
+                <canvas #topCanvas id="topProductsChart" [hidden]="topProducts.length === 0"></canvas>
 
                 <!-- Fallback bars when chart is not ready -->
                 <div *ngIf="topProducts.length>0 && !chartReady" class="fallback-bars">
