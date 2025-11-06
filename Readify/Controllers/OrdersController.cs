@@ -168,6 +168,20 @@ public class OrdersController : ControllerBase
                         await tx.RollbackAsync();
                         return BadRequest(new { message = $"Insufficient stock for product '{c.Product.Title}'. Available: {c.Product.StockQty}, requested: {c.Quantity}" });
                     }
+
+                    // Also update the tracked product entity so SaveChanges doesn't overwrite the DB change
+                    try
+                    {
+                        if (c.Product != null)
+                        {
+                            c.Product.StockQty = Math.Max(0, c.Product.StockQty - c.Quantity);
+                            _context.Entry(c.Product).Property(p => p.StockQty).IsModified = true;
+                        }
+                    }
+                    catch
+                    {
+                        // best-effort, ignore if tracking not available
+                    }
                 }
 
                 // If a payment service is registered in DI, use it
