@@ -50,6 +50,10 @@ import { adminGuard } from '../../guards/admin.guard';
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let o">{{o.orderStatus}} / {{o.paymentStatus}}</td>
             </ng-container>
+            <ng-container matColumnDef="tx">
+              <th mat-header-cell *matHeaderCellDef>Payment Tx</th>
+              <td mat-cell *matCellDef="let o">{{o.paymentTransactionId || '-'}}</td>
+            </ng-container>
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Actions</th>
               <td mat-cell *matCellDef="let o">
@@ -72,7 +76,7 @@ import { adminGuard } from '../../guards/admin.guard';
 })
 export class AdminOrdersComponent {
   orders: any[] = [];
-  displayedColumns = ['id', 'user', 'date', 'total', 'status', 'actions'];
+  displayedColumns = ['id', 'user', 'date', 'total', 'status', 'tx', 'actions'];
   filter = '';
 
   constructor(private http: HttpClient) { this.load(); }

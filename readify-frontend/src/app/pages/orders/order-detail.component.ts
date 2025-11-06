@@ -25,6 +25,8 @@ import { LocalDatePipe } from '../../pipes/local-date.pipe';
         <p *ngIf="order.shippingAddress"><strong>Address:</strong> {{ order.shippingAddress }}</p>
         <p *ngIf="order.shippingPhone"><strong>Phone:</strong> {{ order.shippingPhone }}</p>
 
+        <p *ngIf="order.paymentTransactionId"><strong>Payment Transaction:</strong> {{ order.paymentTransactionId }}</p>
+
         <h5 class="mt-3">Items</h5>
         <mat-list *ngIf="order.items?.length>0">
           <mat-list-item *ngFor="let it of order.items">
