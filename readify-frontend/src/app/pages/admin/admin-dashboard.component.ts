@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -68,7 +68,7 @@ interface DashboardStats {
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
               <div class="chart-wrap" *ngIf="topProducts.length>0">
-                <canvas id="topProductsChart"></canvas>
+                <canvas #topCanvas id="topProductsChart"></canvas>
               </div>
 
               <ul *ngIf="topProducts.length>0 && !showChart" class="list-unstyled mt-2">
@@ -105,7 +105,9 @@ export class AdminDashboardComponent {
 
   showChart = true;
 
-  constructor(private svc: AdminDashboardService) {
+  @ViewChild('topCanvas', { static: false }) topCanvas?: ElementRef<HTMLCanvasElement>;
+
+  constructor(private svc: AdminDashboardService, private cd: ChangeDetectorRef) {
     this.load();
   }
 
@@ -113,22 +115,45 @@ export class AdminDashboardComponent {
     this.loading = true;
     this.svc.getStats().subscribe({ next: (s) => {
         this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; await this.renderChart(); this.loading = false; }, error: () => this.loading = false });
+        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; /* allow view to update */ this.cd.detectChanges(); await new Promise(r => setTimeout(r, 0)); await this.renderChart(); this.loading = false; }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
   }
 
   private async renderChart() {
     if (!this.topProducts || this.topProducts.length === 0) return;
     try {
-      const Chart = (await import('chart.js/auto')).default;
-      const ctx = (document.getElementById('topProductsChart') as HTMLCanvasElement).getContext('2d');
+      const ChartModule = await import('chart.js/auto');
+      const Chart = (ChartModule as any).default ?? ChartModule;
+
+      // ensure canvas element is present
+      const canvasEl: HTMLCanvasElement | undefined = this.topCanvas?.nativeElement ?? document.getElementById('topProductsChart') as HTMLCanvasElement | null ?? undefined;
+      if (!canvasEl) {
+        // If canvas not found, bail and fallback to list
+        this.showChart = false;
+        console.warn('Chart canvas not found');
+        return;
+      }
+
+      const ctx = canvasEl.getContext('2d');
+      if (!ctx) {
+        this.showChart = false;
+        console.warn('Unable to get canvas context');
+        return;
+      }
+
       const labels = this.topProducts.map(p => p.productName);
       const data = this.topProducts.map(p => p.quantitySold);
-      new Chart(ctx!, {
+      // destroy previous chart instance if present
+      (canvasEl as any).__chartInstance?.destroy?.();
+
+      const chart = new (Chart as any)(ctx, {
         type: 'bar',
         data: { labels, datasets: [{ label: 'Quantity Sold', data, backgroundColor: '#3f51b5' }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
       });
+
+      // store instance to allow cleanup
+      (canvasEl as any).__chartInstance = chart;
     } catch (ex) {
       this.showChart = false;
       console.warn('Chart render failed', ex);
