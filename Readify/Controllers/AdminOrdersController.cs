@@ -23,8 +23,9 @@ public class AdminOrdersController : ControllerBase
     }
 
     // GET api/admin/orders
+    // supports server-side paging, optional status filter, search (q), and sorting
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] string? status = null)
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 50, [FromQuery] string? status = null, [FromQuery] string? q = null, [FromQuery] string? sortBy = null, [FromQuery] string? sortDir = null)
     {
         try
         {
@@ -32,17 +33,46 @@ public class AdminOrdersController : ControllerBase
             if (pageSize <= 0) pageSize = 50;
 
             var query = _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).AsNoTracking().AsQueryable();
+
             if (!string.IsNullOrWhiteSpace(status))
             {
                 var s = status.Trim();
                 query = query.Where(o => o.OrderStatus == s || o.PaymentStatus == s || o.Status == s);
             }
 
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var tq = q.Trim();
+                // if numeric, search by Id
+                if (int.TryParse(tq, out var id))
+                {
+                    query = query.Where(o => o.Id == id);
+                }
+                else
+                {
+                    query = query.Where(o => o.PaymentTransactionId!.Contains(tq) || o.PromoCode!.Contains(tq) || o.OrderStatus.Contains(tq) || o.PaymentStatus.Contains(tq));
+                }
+            }
+
+            // Sorting
+            var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(sortBy))
+            {
+                switch (sortBy.ToLowerInvariant())
+                {
+                    case "date": query = desc ? query.OrderByDescending(o => o.OrderDate) : query.OrderBy(o => o.OrderDate); break;
+                    case "total": query = desc ? query.OrderByDescending(o => o.TotalAmount) : query.OrderBy(o => o.TotalAmount); break;
+                    case "status": query = desc ? query.OrderByDescending(o => o.OrderStatus) : query.OrderBy(o => o.OrderStatus); break;
+                    default: query = query.OrderByDescending(o => o.OrderDate); break;
+                }
+            }
+            else
+            {
+                query = query.OrderByDescending(o => o.OrderDate);
+            }
+
             var total = await query.CountAsync();
-            var items = await query.OrderByDescending(o => o.OrderDate)
-                                   .Skip((page - 1) * pageSize)
-                                   .Take(pageSize)
-                                   .ToListAsync();
+            var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
             return Ok(new { items, total, page, pageSize });
         }
