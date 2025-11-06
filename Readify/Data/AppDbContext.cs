@@ -86,6 +86,32 @@ namespace Readify.Data
             modelBuilder.Entity<PromoCode>()
                 .Property(p => p.Type)
                 .HasMaxLength(32);
+
+            // Ensure discount and shipping amounts use appropriate types
+            modelBuilder.Entity<Order>()
+                .Property(o => o.DiscountAmount)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<Order>()
+                .Property(o => o.DiscountPercent)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<Order>()
+                .Property(o => o.ShippingCost)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<ShippingSetting>()
+                .Property(s => s.Local)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ShippingSetting>()
+                .Property(s => s.National)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ShippingSetting>()
+                .Property(s => s.International)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ShippingSetting>()
+                .Property(s => s.FreeShippingThreshold)
+                .HasColumnType("decimal(18,2)");
         }
     }
 }
