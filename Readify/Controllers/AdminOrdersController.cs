@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Readify.Data;
 using Readify.Models;
+using Readify.Services;
 
 namespace Readify.Controllers;
 
