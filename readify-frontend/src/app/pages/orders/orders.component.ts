@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CartService } from '../../services/cart.service';
+import { OrderService, OrderSummaryDto } from '../../services/order.service';
 import { MatCardModule } from '@angular/material/card';
 import { MatListModule } from '@angular/material/list';
 import { RouterModule } from '@angular/router';
 import { LoadingSkeletonComponent } from '../../components/loading-skeleton.component';
 import { LocalDatePipe } from '../../pipes/local-date.pipe';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-orders',
@@ -31,8 +32,8 @@ import { LocalDatePipe } from '../../pipes/local-date.pipe';
           <mat-list-item *ngFor="let o of orders">
             <a [routerLink]="['/orders', o.id]" class="order-link">
               <div style="width:100%">
-                <div class="order-title">Order #{{ o.id }} - {{ o.orderDate | localDate:'medium' }}</div>
-                <div class="order-meta">Total: {{ o.totalAmount | currency }} — Status: {{ o.status }}</div>
+                <div class="order-title">Order #{{ o.id }} - {{ o.createdAt | localDate:'medium' }}</div>
+                <div class="order-meta">Total: {{ o.total | currency }} — Status: {{ o.status }}</div>
               </div>
             </a>
           </mat-list-item>
@@ -43,10 +44,10 @@ import { LocalDatePipe } from '../../pipes/local-date.pipe';
   `
 })
 export class OrdersComponent {
-  orders: any[] = [];
+  orders: OrderSummaryDto[] = [];
   loading = false;
 
-  constructor(private cart: CartService) { this.load(); }
+  constructor(private svc: OrderService, private notify: NotificationService) { this.load(); }
 
-  load() { this.loading = true; this.cart.getOrders().subscribe({ next: (res: any) => { this.orders = res; this.loading = false; }, error: () => { this.loading = false; } }); }
+  load() { this.loading = true; this.svc.getMyOrders().subscribe({ next: (res) => { this.orders = res; this.loading = false; }, error: () => { this.loading = false; this.notify.error('Failed to load orders'); } }); }
 }

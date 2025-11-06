@@ -262,6 +262,21 @@ export class AdminProductFormComponent {
   }
 
   async save() {
+    this.errors = [];
+
+    // client-side validation summary
+    if (this.form.invalid) {
+      if (this.form.get('title')?.hasError('required')) this.errors.push('Title is required');
+      if (this.form.get('price')?.hasError('required')) this.errors.push('Price is required');
+      if (this.form.get('stockQty')?.hasError('required')) this.errors.push('Stock quantity is required');
+      if (this.form.get('categoryId')?.hasError('required') || Number(this.form.value.categoryId) <= 0) this.errors.push('Please select a valid category');
+      // focus first error by setting aria-live or scroll into view - simple approach: notify
+      if (this.errors.length) {
+        this.notify.error('Please fix validation errors');
+        return;
+      }
+    }
+
     this.saving = true;
     // trim image url before sending
     const imageUrl = (this.form.value.imageUrl || '').trim();

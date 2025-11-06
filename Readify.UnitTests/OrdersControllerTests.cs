@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Readify.Controllers;
@@ -6,7 +5,12 @@ using Readify.Data;
 using Readify.Models;
 using Readify.Services;
 using Xunit;
+using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
+using System.Threading.Tasks;
+using System;
+using System.Linq;
+using Microsoft.Extensions.Logging;
 
 public class OrdersControllerTests
 {
@@ -18,10 +22,14 @@ public class OrdersControllerTests
         await db.Database.OpenConnectionAsync();
         await db.Database.EnsureCreatedAsync();
 
-        // seed product and user
+        // seed category, product and user
+        var category = new Category { Name = "TestCat" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
         var user = new User { FullName = "Test", Email = "u@test.com", PasswordHash = "x", Role = "User", IsActive = true, CreatedAt = DateTime.UtcNow };
         db.Users.Add(user);
-        db.Products.Add(new Product { Title = "P", Authors = "A", ISBN = "1", Price = 10m, StockQty = 5, CategoryId = 0, Description = "d", ImageUrl = "i" });
+        db.Products.Add(new Product { Title = "P", Authors = "A", ISBN = "1", Price = 10m, StockQty = 5, CategoryId = category.Id, Description = "d", ImageUrl = "i", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
         await db.SaveChangesAsync();
 
         var product = await db.Products.FirstAsync();
@@ -29,12 +37,14 @@ public class OrdersControllerTests
         db.CartItems.Add(new CartItem { UserId = user.Id, ProductId = product.Id, Quantity = 2 });
         await db.SaveChangesAsync();
 
-        var email = new LoggingEmailService(NullLoggerFactory.Instance.CreateLogger<LoggingEmailService>());
+        var emailLogger = NullLogger<LoggingEmailService>.Instance;
+        var ordersLogger = NullLogger<Readify.Controllers.OrdersController>.Instance;
+        var email = new LoggingEmailService(emailLogger);
         var shipping = new MockShippingService();
-        var controller = new Readify.Controllers.OrdersController(db, email, NullLoggerFactory.Instance.CreateLogger<Readify.Controllers.OrdersController>(), shipping);
+        var controller = new Readify.Controllers.OrdersController(db, email, ordersLogger, shipping);
 
         // set HttpContext user with claim userId to simulate authenticated user
-        var claims = new[] { new Claim("userId", user.Id.ToString()), new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()) };
+        var claims = new[] { new Claim("userId", user.Id.ToString()), new Claim(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id.ToString()) };
         var identity = new ClaimsIdentity(claims, "TestAuth");
         var principal = new ClaimsPrincipal(identity);
         controller.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext

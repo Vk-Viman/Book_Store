@@ -19,6 +19,10 @@
           <span class="cart-badge" *ngIf="c > 0">{{c}}</span>
         </ng-container>
       </a>
+      <a mat-button routerLink="/orders" routerLinkActive="" *ngIf="(loggedIn$ | async)" class="text-white">
+        <mat-icon>receipt_long</mat-icon>
+        <span class="nav-label">My Orders</span>
+      </a>
       <button mat-button [matMenuTriggerFor]="adminMenu" *ngIf="(isAdmin$ | async)" class="text-white">
         <mat-icon>admin_panel_settings</mat-icon>
         <span class="nav-label">Admin</span>
@@ -60,6 +64,10 @@
           <mat-icon>person</mat-icon>
           <span>Profile</span>
         </button>
+        <button mat-menu-item routerLink="/orders">
+          <mat-icon>receipt_long</mat-icon>
+          <span>My Orders</span>
+        </button>
         <mat-divider></mat-divider>
         <button mat-menu-item (click)="logout()">
           <mat-icon>logout</mat-icon>
@@ -83,6 +91,10 @@
         <ng-container *ngIf="(cartCount$ | async) as cMobile">
           <span class="cart-badge" *ngIf="cMobile > 0">{{cMobile}}</span>
         </ng-container>
+      </a>
+      <a mat-menu-item routerLink="/orders" *ngIf="(loggedIn$ | async)">
+        <mat-icon>receipt_long</mat-icon>
+        <span>My Orders</span>
       </a>
       <div *ngIf="(isAdmin$ | async)">
         <mat-divider></mat-divider>
