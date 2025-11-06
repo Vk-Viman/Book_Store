@@ -67,7 +67,6 @@ interface DashboardStats {
             <mat-card-content>
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
-              <!-- keep canvas in DOM always, hide when empty so ViewChild is available reliably -->
               <div class="chart-wrap">
                 <canvas #topCanvas id="topProductsChart" [hidden]="topProducts.length === 0"></canvas>
               </div>
@@ -115,8 +114,15 @@ export class AdminDashboardComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // create an empty chart instance so we can update it later when data arrives
+    // defer; canvas might still be hidden initially
     setTimeout(() => void this.initEmptyChart(), 0);
+  }
+
+  private setExplicitCanvasSize(canvas: HTMLCanvasElement) {
+    const parent = canvas.parentElement as HTMLElement | null;
+    const width = Math.max(300, parent?.clientWidth || canvas.clientWidth || 600);
+    canvas.width = width * (window.devicePixelRatio || 1);
+    canvas.height = (parent?.clientHeight || 300) * (window.devicePixelRatio || 1);
   }
 
   private async initEmptyChart() {
@@ -127,12 +133,12 @@ export class AdminDashboardComponent implements AfterViewInit {
       if (!canvasEl) return;
       const ctx = canvasEl.getContext('2d');
       if (!ctx) return;
-      // destroy if existed
+      this.setExplicitCanvasSize(canvasEl);
       (canvasEl as any).__chartInstance?.destroy?.();
       this.chartInstance = new (Chart as any)(ctx, {
         type: 'bar',
         data: { labels: [], datasets: [{ label: 'Quantity Sold', data: [], backgroundColor: '#3f51b5' }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        options: { responsive: false, maintainAspectRatio: false, plugins: { legend: { display: false } } }
       });
       (canvasEl as any).__chartInstance = this.chartInstance;
     } catch (ex) {
@@ -145,29 +151,26 @@ export class AdminDashboardComponent implements AfterViewInit {
     this.loading = true;
     this.svc.getStats().subscribe({ next: (s) => {
         this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; /* allow view to update */ this.cd.detectChanges(); await new Promise(r => setTimeout(r, 50)); this.updateChartData(); this.loading = false; }, error: () => this.loading = false });
+        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; this.cd.detectChanges(); await new Promise(r => setTimeout(r, 50)); this.updateChartData(); this.loading = false; }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
   }
 
   private updateChartData() {
     if (!this.topProducts || this.topProducts.length === 0) return;
     try {
-      // if an instance exists, update datasets; otherwise create one now
+      const canvasEl: HTMLCanvasElement | undefined = this.topCanvas?.nativeElement ?? document.getElementById('topProductsChart') as HTMLCanvasElement | null ?? undefined;
+      if (!canvasEl) { this.showChart = false; return; }
+      this.setExplicitCanvasSize(canvasEl);
+
       if (this.chartInstance) {
-        this.chartInstance.data.labels = this.topProducts.map(p => p.productName);
-        this.chartInstance.data.datasets[0].data = this.topProducts.map(p => p.quantitySold);
+        this.chartInstance.data.labels = this.topProducts.map((p: TopProductDto) => p.productName);
+        this.chartInstance.data.datasets[0].data = this.topProducts.map((p: TopProductDto) => p.quantitySold);
         this.chartInstance.update();
-        // ensure Chart.js recalculates sizes after canvas was possibly hidden
-        setTimeout(() => { try { this.chartInstance.resize(); } catch (_) { } }, 50);
+        this.chartInstance.resize();
         this.showChart = true;
         return;
       }
 
-      // try to create chart if it wasn't created earlier
-      const canvasEl: HTMLCanvasElement | undefined = this.topCanvas?.nativeElement ?? document.getElementById('topProductsChart') as HTMLCanvasElement | null ?? undefined;
-      if (!canvasEl) { this.showChart = false; return; }
-
-      // create chart now
       (async () => {
         const ChartModule = await import('chart.js/auto');
         const Chart = (ChartModule as any).default ?? ChartModule;
@@ -176,11 +179,10 @@ export class AdminDashboardComponent implements AfterViewInit {
         this.chartInstance = new (Chart as any)(ctx, {
           type: 'bar',
           data: { labels: this.topProducts.map(p => p.productName), datasets: [{ label: 'Quantity Sold', data: this.topProducts.map(p => p.quantitySold), backgroundColor: '#3f51b5' }] },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+          options: { responsive: false, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
         (canvasEl as any).__chartInstance = this.chartInstance;
-        // resize after a tick so layout is settled
-        setTimeout(() => { try { this.chartInstance.resize(); } catch (_) { } }, 50);
+        this.chartInstance.resize();
         this.showChart = true;
       })();
     } catch (ex) {
