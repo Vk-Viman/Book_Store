@@ -40,7 +40,7 @@ public class OrdersControllerTests
         var emailLogger = NullLogger<LoggingEmailService>.Instance;
         var ordersLogger = NullLogger<Readify.Controllers.OrdersController>.Instance;
         var email = new LoggingEmailService(emailLogger);
-        var shipping = new MockShippingService();
+        var shipping = new Readify.UnitTests.TestHelpers.MockShippingService();
         var controller = new Readify.Controllers.OrdersController(db, email, ordersLogger, shipping);
 
         // set HttpContext user with claim userId to simulate authenticated user
@@ -65,9 +65,4 @@ public class OrdersControllerTests
         var refreshedProduct = await db.Products.FindAsync(product.Id);
         Assert.Equal(3, refreshedProduct.StockQty);
     }
-}
-
-public class MockShippingService : IShippingService
-{
-    public Task<decimal> GetRateAsync(string region, decimal subtotal) => Task.FromResult(2m);
 }
