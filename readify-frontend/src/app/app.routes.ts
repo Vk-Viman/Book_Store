@@ -5,7 +5,8 @@ import { authGuard } from './guards/auth.guard';
 import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'books', pathMatch: 'full' },
+  { path: '', redirectTo: 'home', pathMatch: 'full' },
+  { path: 'home', loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent) },
   { path: 'books', loadComponent: () => import('./pages/books/book-list.component').then(m => m.BookListComponent) },
   { path: 'books/:id', loadComponent: () => import('./pages/books/book-detail.component').then(m => m.BookDetailComponent) },
   { path: 'categories/:id', loadComponent: () => import('./pages/books/book-list.component').then(m => m.BookListComponent) },
@@ -16,7 +17,6 @@ export const routes: Routes = [
   { path: 'register', component: RegisterComponent },
   { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent) },
   { path: 'reset-password/:token', loadComponent: () => import('./pages/reset-password/reset-password.component').then(m => m.ResetPasswordComponent) },
-  { path: 'home', loadComponent: () => import('./pages/home/home-redirect.component').then(m => m.HomeRedirectComponent), canActivate: [authGuard] },
   { path: 'user/home', redirectTo: 'books', pathMatch: 'full' },
   { path: 'admin/home', redirectTo: 'admin/dashboard', pathMatch: 'full' },
   { path: 'profile', loadComponent: () => import('./pages/profile/profile.component').then(m => m.ProfileComponent), canActivate: [authGuard] },
@@ -34,5 +34,5 @@ export const routes: Routes = [
   { path: 'admin/promos/:id', loadComponent: () => import('./pages/admin/promo-edit.component').then(m => m.AdminPromoEditComponent), canActivate: [adminGuard] },
   { path: 'admin/shipping', loadComponent: () => import('./pages/admin/shipping-form.component').then(m => m.AdminShippingFormComponent), canActivate: [adminGuard] },
 
-  { path: '**', redirectTo: 'books' }
+  { path: '**', redirectTo: 'home' }
 ];

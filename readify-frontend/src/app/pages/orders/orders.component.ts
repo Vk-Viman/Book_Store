@@ -31,11 +31,11 @@ import { NotificationService } from '../../services/notification.service';
     <mat-card class="orders-card">
       <mat-card-title>Your Orders</mat-card-title>
       <mat-card-content>
-        <div *ngIf="loading" class="py-4"><app-loading-skeleton type="list"></app-loading-skeleton></div>
-        <div *ngIf="!loading && orders.length===0" class="text-center py-4">You have no orders yet.</div>
+        <div *ngIf="loading" class="py-4" aria-busy="true"><app-loading-skeleton type="list"></app-loading-skeleton></div>
+        <div *ngIf="!loading && orders.length===0" class="text-center py-4" role="status">You have no orders yet. Place an order to see it here.</div>
         <mat-list *ngIf="!loading && orders.length>0">
           <mat-list-item *ngFor="let o of orders">
-            <a [routerLink]="['/orders', o.id]" class="order-link">
+            <a [routerLink]="['/orders', o.id]" class="order-link" aria-label="Open order {{o.id}} details">
               <div style="width:100%" class="d-flex justify-content-between align-items-center">
                 <div>
                   <div class="order-title">Order #{{ o.id }}</div>

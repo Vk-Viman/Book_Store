@@ -4,33 +4,36 @@ import { FormsModule } from '@angular/forms';
 import { CartService } from '../../services/cart.service';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { LoadingSkeletonComponent } from '../../components/loading-skeleton.component';
 
 @Component({
   selector: 'app-checkout',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LoadingSkeletonComponent],
   template: `
   <div class="container mt-4">
     <h2>Checkout</h2>
-    <form #f="ngForm" (ngSubmit)="submit()">
+    <form #f="ngForm" (ngSubmit)="submit()" aria-label="Checkout form">
       <div class="row">
         <div class="col-md-6">
+          <div *ngIf="loading" aria-busy="true"><app-loading-skeleton type="text" [count]="3"></app-loading-skeleton></div>
+
           <div class="mb-3">
             <label class="form-label">Full name</label>
-            <input name="name" [(ngModel)]="model.name" required class="form-control" />
+            <input name="name" [(ngModel)]="model.name" required class="form-control" aria-label="Full name" />
           </div>
           <div class="mb-3">
             <label class="form-label">Address</label>
-            <textarea name="address" [(ngModel)]="model.address" required class="form-control"></textarea>
+            <textarea name="address" [(ngModel)]="model.address" required class="form-control" aria-label="Address"></textarea>
           </div>
           <div class="mb-3">
             <label class="form-label">Phone</label>
-            <input name="phone" [(ngModel)]="model.phone" required class="form-control" />
+            <input name="phone" [(ngModel)]="model.phone" required class="form-control" aria-label="Phone" />
           </div>
 
           <div class="mb-3">
             <label class="form-label">Shipping region</label>
-            <select class="form-select" [(ngModel)]="selectedRegion" name="region" (change)="onRegionChange()">
+            <select class="form-select" [(ngModel)]="selectedRegion" name="region" (change)="onRegionChange()" aria-label="Shipping region">
               <option *ngFor="let r of shippingRegions" [value]="r.key">{{ r.label }}</option>
             </select>
             <div class="form-text">Shipping rate will be computed server-side for the selected region.</div>
@@ -39,7 +42,7 @@ import { HttpClient } from '@angular/common/http';
           <div class="mb-3">
             <label class="form-label">Promo code (optional)</label>
             <div class="input-group">
-              <input name="promo" [(ngModel)]="promoCode" class="form-control" placeholder="Enter promo code" />
+              <input name="promo" [(ngModel)]="promoCode" class="form-control" placeholder="Enter promo code" aria-label="Promo code" />
               <button type="button" class="btn btn-outline-secondary" (click)="validatePromo()" [disabled]="validatingPromo">Apply</button>
             </div>
             <div *ngIf="promoValid" class="text-success small mt-1">Valid promo: {{ promoValidMessage }}</div>
@@ -48,7 +51,7 @@ import { HttpClient } from '@angular/common/http';
         </div>
 
         <div class="col-md-6">
-          <div class="card summary-card p-3">
+          <div class="card summary-card p-3" aria-live="polite">
             <h5>Order summary</h5>
             <div *ngIf="items?.length === 0" class="text-muted">Your cart is empty.</div>
 
@@ -113,6 +116,7 @@ export class CheckoutComponent implements OnInit {
   discountAmount = 0;
 
   items: any[] = [];
+  loading = false;
 
   constructor(private cart: CartService, private router: Router, private http: HttpClient) {}
 
@@ -126,12 +130,14 @@ export class CheckoutComponent implements OnInit {
   }
 
   private loadCartTotal() {
+    this.loading = true;
     this.cart.getCart().subscribe({ next: (items: any[]) => {
         this.items = items ?? [];
         this.rawTotal = this.items.reduce((s: number, i: any) => s + ((i.product?.price ?? i.unitPrice ?? 0) * i.quantity), 0);
         // refresh shipping rate because subtotal changed
         this.onRegionChange();
-      }, error: () => { this.items = []; this.rawTotal = 0; this.computeTotals(); } });
+        this.loading = false;
+      }, error: () => { this.items = []; this.rawTotal = 0; this.computeTotals(); this.loading = false; } });
   }
 
   changeQty(productId: number, qty: number) {
