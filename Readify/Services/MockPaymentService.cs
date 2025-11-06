@@ -18,7 +18,7 @@ public class MockPaymentService : IPaymentService
         var key = token ?? Guid.NewGuid().ToString();
         _logger.LogInformation("Mock charge: amount={Amount} token={Token}", amount, token);
 
-        if (amount <= 0) return Task.FromResult((false, (string?)null));
+        if (amount <= 0) return Task.FromResult<(bool, string?)>((false, null));
 
         var fail = false;
         if (!string.IsNullOrEmpty(token))
@@ -36,12 +36,12 @@ public class MockPaymentService : IPaymentService
         if (fail)
         {
             _logger.LogWarning("Mock payment failed for token={Token}", token);
-            return Task.FromResult((false, (string?)null));
+            return Task.FromResult<(bool, string?)>((false, null));
         }
 
         var transactionId = Guid.NewGuid().ToString();
         _charges[transactionId] = amount;
-        return Task.FromResult((true, transactionId));
+        return Task.FromResult<(bool, string?)>((true, transactionId));
     }
 
     public Task<bool> RefundAsync(decimal amount, string? transactionId = null)
