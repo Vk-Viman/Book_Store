@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ViewChild, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -67,15 +67,8 @@ interface DashboardStats {
             <mat-card-content>
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
-              <!-- Simple, reliable bar chart built with CSS -->
-              <div *ngIf="topProducts.length>0" class="fallback-bars">
-                <div *ngFor="let p of topProducts" class="bar-row">
-                  <div class="bar-label">{{p.productName}}</div>
-                  <div class="bar-track">
-                    <div class="bar-fill" [style.width.%]="(p.quantitySold / maxQuantity) * 100"></div>
-                    <span class="bar-value">{{p.quantitySold}}</span>
-                  </div>
-                </div>
+              <div class="chart-wrap">
+                <canvas #topCanvas id="topProductsChart"></canvas>
               </div>
 
             </mat-card-content>
@@ -91,35 +84,87 @@ interface DashboardStats {
     .stat-card .stat-icon mat-icon { font-size: 36px; color: var(--primary-color); }
     .stat-value { font-size: 1.6rem; font-weight: 600; }
     .stat-label { font-size: 0.85rem; color: rgba(0,0,0,0.6); }
-
-    /* CSS bars */
-    .fallback-bars { padding: 8px 4px 4px; }
-    .bar-row { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
-    .bar-label { width: 180px; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .bar-track { position: relative; flex: 1; height: 12px; background: #e9ecef; border-radius: 6px; }
-    .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #3f51b5; border-radius: 6px; }
-    .bar-value { position: absolute; right: 6px; top: -18px; font-size: 12px; color: rgba(0,0,0,0.7); }
-
-    @media (max-width: 767px) {
-      .stat-value { font-size: 1.25rem; }
-      .stat-card { min-width: 140px; }
-      .bar-label { width: 120px; }
-    }
+    .chart-wrap { position: relative; width: 100%; height: 300px; }
+    canvas { width: 100% !important; height: 100% !important; display:block; }
+    @media (max-width: 767px) { .stat-value { font-size: 1.25rem; } .stat-card { min-width: 140px; } .chart-wrap { height: 220px; } }
   `]
 })
-export class AdminDashboardComponent {
+export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   stats: DashboardStats = { totalUsers: 0, totalOrders: 0, totalSales: 0 };
   topProducts: TopProductDto[] = [];
   loading = true;
-  maxQuantity = 1;
 
-  constructor(private svc: AdminDashboardService) { this.load(); }
+  @ViewChild('topCanvas', { static: false }) topCanvas?: ElementRef<HTMLCanvasElement>;
+
+  private chart: any | null = null;
+  private resizeObs?: ResizeObserver;
+  private ChartCtor: any | null = null;
+
+  constructor(private svc: AdminDashboardService, private cd: ChangeDetectorRef, private zone: NgZone) {
+    this.load();
+  }
+
+  ngAfterViewInit(): void {
+    // Observe size; initialize chart once the canvas has non-zero size
+    const canvas = this.topCanvas?.nativeElement;
+    if (!canvas) return;
+    this.resizeObs = new ResizeObserver(() => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        this.initChartIfNeeded();
+        if (this.chart && this.topProducts.length > 0) {
+          this.updateChart();
+        }
+      }
+    });
+    this.resizeObs.observe(canvas);
+  }
+
+  ngOnDestroy(): void {
+    try { this.resizeObs?.disconnect(); } catch {}
+    try { this.chart?.destroy?.(); } catch {}
+  }
+
+  private async ensureChartCtor() {
+    if (this.ChartCtor) return;
+    const mod = await import('chart.js/auto');
+    this.ChartCtor = (mod as any).default ?? mod;
+  }
+
+  private async initChartIfNeeded() {
+    if (this.chart) return;
+    const canvas = this.topCanvas?.nativeElement;
+    if (!canvas) return;
+    await this.ensureChartCtor();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    this.chart = new this.ChartCtor(ctx, {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Quantity Sold', data: [], backgroundColor: '#3f51b5' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+
+  private updateChart() {
+    if (!this.chart) return;
+    this.chart.data.labels = this.topProducts.map(p => p.productName);
+    this.chart.data.datasets[0].data = this.topProducts.map(p => p.quantitySold);
+    this.zone.runOutsideAngular(() => {
+      this.chart.update();
+    });
+  }
 
   load() {
     this.loading = true;
     this.svc.getStats().subscribe({ next: (s) => {
         this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: (t) => { this.topProducts = t || []; this.maxQuantity = Math.max(...this.topProducts.map(p => p.quantitySold), 1); this.loading = false; }, error: () => this.loading = false });
+        this.svc.getTopProducts().subscribe({ next: (t) => {
+            this.topProducts = t || [];
+            this.cd.detectChanges();
+            // initialize or update chart after data arrives
+            setTimeout(async () => { await this.initChartIfNeeded(); this.updateChart(); }, 0);
+            this.loading = false;
+          }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
   }
 }
