@@ -22,6 +22,7 @@ export class AdminDashboardService {
   }
 
   getTopProducts(): Observable<TopProductDto[]> {
-    return this.http.get<TopProductDto[]>('/api/admin/top-products');
+    // backend exposes top-products under the stats controller: /api/admin/stats/top-products
+    return this.http.get<TopProductDto[]>('/api/admin/stats/top-products');
   }
 }
