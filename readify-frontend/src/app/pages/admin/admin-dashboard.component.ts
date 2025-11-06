@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { AdminDashboardService, TopProductDto } from './admin-dashboard.service';
 
 interface DashboardStats {
@@ -14,7 +16,7 @@ interface DashboardStats {
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [CommonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, MatButtonModule, MatTooltipModule],
   template: `
     <div class="container mt-4">
       <h2 class="mb-4 d-flex align-items-center">
@@ -60,14 +62,17 @@ interface DashboardStats {
 
       <div *ngIf="!loading" class="row">
         <div class="col-12">
-          <mat-card>
-            <mat-card-header class="d-flex justify-content-between align-items-center">
+          <mat-card class="chart-card">
+            <mat-card-header>
               <mat-card-title>Top Products</mat-card-title>
-              <div class="btn-group">
-                <button class="btn btn-outline-secondary btn-sm me-2" (click)="exportChartPng()" [disabled]="!chart">Export PNG</button>
-                <button class="btn btn-outline-secondary btn-sm" (click)="exportCsv()" [disabled]="topProducts.length===0">Export CSV</button>
-              </div>
             </mat-card-header>
+
+            <!-- Floating toolbar to ensure visibility -->
+            <div class="floating-toolbar" role="toolbar" aria-label="Chart actions">
+              <button class="export-btn" title="Download chart as PNG" (click)="exportChartPng()" [disabled]="!chart">📷 Export PNG</button>
+              <button class="export-btn secondary" title="Download top products as CSV" (click)="exportCsv()" [disabled]="topProducts.length===0">⬇️ Export CSV</button>
+            </div>
+
             <mat-card-content>
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
@@ -90,7 +95,14 @@ interface DashboardStats {
     .stat-label { font-size: 0.85rem; color: rgba(0,0,0,0.6); }
     .chart-wrap { position: relative; width: 100%; height: 300px; }
     canvas { width: 100% !important; height: 100% !important; display:block; }
-    .btn-group { display:flex; align-items:center; }
+
+    /* floating toolbar */
+    .chart-card { position: relative; }
+    .floating-toolbar { position: absolute; top: 12px; right: 12px; z-index: 1000; display:flex; gap:8px; }
+    .export-btn { background:#1e88e5; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
+    .export-btn.secondary { background:#6c757d; }
+    .export-btn[disabled] { opacity:0.5; cursor:not-allowed; }
+
     @media (max-width: 767px) { .stat-value { font-size: 1.25rem; } .stat-card { min-width: 140px; } .chart-wrap { height: 220px; } }
   `]
 })
@@ -101,7 +113,7 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild('topCanvas', { static: false }) topCanvas?: ElementRef<HTMLCanvasElement>;
 
-  private chart: any | null = null;
+  public chart: any | null = null; // made public so template can read
   private resizeObs?: ResizeObserver;
   private ChartCtor: any | null = null;
 
@@ -176,7 +188,28 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
   exportChartPng() {
     if (!this.chart) return;
     try {
-      const url = this.chart.toBase64Image();
+      const origCanvas = this.topCanvas?.nativeElement;
+      if (!origCanvas) return;
+
+      // Create a temporary canvas and draw a light background behind the chart
+      const temp = document.createElement('canvas');
+      // Use the same pixel size as the source canvas
+      const width = origCanvas.width || Math.max(origCanvas.clientWidth, 800);
+      const height = origCanvas.height || Math.max(origCanvas.clientHeight, 300);
+      temp.width = width;
+      temp.height = height;
+
+      const ctx = temp.getContext('2d');
+      if (!ctx) return;
+
+      // light background (very light gray-blue) for better contrast on white pages
+      ctx.fillStyle = '#fbfcfe';
+      ctx.fillRect(0, 0, temp.width, temp.height);
+
+      // draw the original chart canvas onto the temporary canvas
+      ctx.drawImage(origCanvas, 0, 0, temp.width, temp.height);
+
+      const url = temp.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = url;
       a.download = `top-products-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
