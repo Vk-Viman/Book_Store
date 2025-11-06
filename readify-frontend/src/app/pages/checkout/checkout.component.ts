@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CartService } from '../../services/cart.service';
@@ -25,22 +25,187 @@ import { HttpClient } from '@angular/common/http';
         <label class="form-label">Phone</label>
         <input name="phone" [(ngModel)]="model.phone" required class="form-control" />
       </div>
+
+      <div class="mb-3">
+        <label class="form-label">Shipping region</label>
+        <select class="form-select" [(ngModel)]="selectedRegion" name="region" (change)="onRegionChange()">
+          <option *ngFor="let r of shippingRegions" [value]="r.key">{{ r.label }}</option>
+        </select>
+        <div class="form-text">Shipping rate will be computed server-side for the selected region.</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Promo code (optional)</label>
+        <div class="input-group">
+          <input name="promo" [(ngModel)]="promoCode" class="form-control" placeholder="Enter promo code" />
+          <button type="button" class="btn btn-outline-secondary" (click)="validatePromo()" [disabled]="validatingPromo">Apply</button>
+        </div>
+        <div *ngIf="promoValid" class="text-success small mt-1">Valid promo: {{ promoValidMessage }}</div>
+        <div *ngIf="promoError" class="text-danger small mt-1">{{ promoError }}</div>
+      </div>
+
+      <div class="mb-3">
+        <h5>Order summary</h5>
+        <div *ngIf="items?.length === 0" class="text-muted">Your cart is empty.</div>
+
+        <div *ngFor="let it of items; trackBy: trackByProduct" class="d-flex justify-content-between align-items-center py-2 border-bottom">
+          <div>
+            <div><strong>{{ it.product?.title || 'Item' }}</strong></div>
+            <div class="text-muted small">{{ it.product?.authors }}</div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary" type="button" (click)="changeQty(it.productId, it.quantity - 1)">-</button>
+            <input type="number" class="form-control form-control-sm" style="width:80px" [value]="it.quantity" (change)="onInputChange(it.productId, $event)" />
+            <button class="btn btn-sm btn-outline-secondary" type="button" (click)="changeQty(it.productId, it.quantity + 1)">+</button>
+            <div class="text-end" style="min-width:140px;">
+              <div>{{ it.quantity }} × {{ formatCurrency(it.product?.price ?? it.unitPrice ?? 0) }}</div>
+              <div><strong>{{ formatCurrency((it.product?.price ?? it.unitPrice ?? 0) * it.quantity) }}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-2 d-flex justify-content-between"><div>Subtotal</div><div>{{ formatCurrency(rawTotal) }}</div></div>
+        <div class="d-flex justify-content-between" *ngIf="discountAmount > 0"><div>Discount {{ promoValidMessage }}</div><div>-{{ formatCurrency(discountAmount) }}</div></div>
+        <div class="d-flex justify-content-between" *ngIf="promoType === 'FreeShipping'"><div>Shipping</div><div class="text-success">Free</div></div>
+        <div class="d-flex justify-content-between" *ngIf="promoType !== 'FreeShipping'"><div>Shipping</div><div>{{ formatCurrency(shippingRate) }}</div></div>
+        <hr />
+        <div class="d-flex justify-content-between"><div><strong>Total</strong></div><div><strong>{{ formatCurrency(discountedTotal) }}</strong></div></div>
+      </div>
+
       <button class="btn btn-primary" [disabled]="processing">Pay (Mock)</button>
     </form>
   </div>
   `
 })
-export class CheckoutComponent {
+export class CheckoutComponent implements OnInit {
   model = { name: '', address: '', phone: '' };
   processing = false;
 
+  shippingRegions = [
+    { key: 'local', label: 'Local' },
+    { key: 'national', label: 'National' },
+    { key: 'international', label: 'International' }
+  ];
+  selectedRegion = 'national';
+  shippingRate = 0;
+
+  promoCode: string = '';
+  validatingPromo = false;
+  promoValid = false;
+  promoValidMessage = '';
+  promoError = '';
+
+  promoType: string | null = null;
+  promoFixedAmount: number | null = null;
+
+  rawTotal = 0;
+  discountedTotal = 0;
+  discountAmount = 0;
+
+  items: any[] = [];
+
   constructor(private cart: CartService, private router: Router, private http: HttpClient) {}
+
+  ngOnInit(): void {
+    this.onRegionChange();
+    this.loadCartTotal();
+  }
+
+  onRegionChange() {
+    this.http.get<any>(`/api/shipping/rate?region=${encodeURIComponent(this.selectedRegion)}&subtotal=${this.rawTotal}`).subscribe({ next: res => { this.shippingRate = res?.rate ?? 0; this.computeTotals(); }, error: () => { this.shippingRate = 0; this.computeTotals(); } });
+  }
+
+  private loadCartTotal() {
+    this.cart.getCart().subscribe({ next: (items: any[]) => {
+        this.items = items ?? [];
+        this.rawTotal = this.items.reduce((s: number, i: any) => s + ((i.product?.price ?? i.unitPrice ?? 0) * i.quantity), 0);
+        // refresh shipping rate because subtotal changed
+        this.onRegionChange();
+      }, error: () => { this.items = []; this.rawTotal = 0; this.computeTotals(); } });
+  }
+
+  changeQty(productId: number, qty: number) {
+    qty = Math.max(0, Math.floor(qty));
+    this.cart.updateQuantity(productId, qty).subscribe({ next: () => { this.loadCartTotal(); }, error: (err: any) => { /* ignore or show notification */ } });
+  }
+
+  onInputChange(productId: number, event: any) {
+    const val = Number(event.target.value || 0);
+    this.changeQty(productId, val);
+  }
+
+  private computeTotals() {
+    const shipping = this.promoType === 'FreeShipping' ? 0 : this.shippingRate;
+
+    // default
+    this.discountAmount = 0;
+
+    if (this.promoValid && this.promoType) {
+      if (this.promoType === 'Percentage') {
+        const match = this.promoValidMessage.match(/([0-9]+(?:\.[0-9]+)?)/);
+        const pct = Number(match?.[1] ?? 0);
+        const discount = Math.round((this.rawTotal * pct) / 100 * 100) / 100;
+        this.discountAmount = discount;
+      } else if (this.promoType === 'Fixed') {
+        this.discountAmount = this.promoFixedAmount ?? 0;
+      } else if (this.promoType === 'FreeShipping') {
+        this.discountAmount = 0;
+      }
+    }
+
+    // final total = subtotal + shipping - discount (clamped >= 0)
+    this.discountedTotal = Math.max(0, this.rawTotal + shipping - (this.discountAmount ?? 0));
+  }
+
+  formatCurrency(value: number) {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(value ?? 0);
+  }
+
+  validatePromo() {
+    this.promoError = '';
+    this.promoValid = false;
+    this.promoType = null;
+    this.promoFixedAmount = null;
+    const code = (this.promoCode || '').trim();
+    if (!code) { this.promoError = 'Please enter a promo code'; return; }
+    this.validatingPromo = true;
+    this.http.get<any>(`/api/cart/promo/${encodeURIComponent(code)}`).subscribe({
+      next: (res: any) => {
+        this.validatingPromo = false;
+        this.promoValid = true;
+        this.promoType = res?.type ?? 'Percentage';
+        this.promoFixedAmount = res?.fixedAmount ?? null;
+        if (this.promoType === 'Percentage') {
+          this.promoValidMessage = res?.discountPercent ? `${res.discountPercent}% off` : 'Promo applied';
+        } else if (this.promoType === 'Fixed') {
+          this.promoValidMessage = res?.fixedAmount ? `${res.fixedAmount} off` : 'Promo applied';
+        } else if (this.promoType === 'FreeShipping') {
+          this.promoValidMessage = 'Free shipping';
+        }
+        this.computeTotals();
+      },
+      error: (err: any) => {
+        this.validatingPromo = false;
+        this.promoError = err?.error?.message || 'Invalid promo code';
+        this.computeTotals();
+      }
+    });
+  }
 
   submit() {
     if (!this.model.name || !this.model.address || !this.model.phone) return;
     this.processing = true;
-    // Send shipping info to the backend during checkout
-    this.cart.checkout({ shippingName: this.model.name, shippingAddress: this.model.address, shippingPhone: this.model.phone })
-      .subscribe({ next: () => { this.processing = false; this.router.navigate(['/orders']); }, error: (err: any) => { this.processing = false; alert(err?.error?.message || 'Checkout failed'); } });
+    const body: any = { shippingName: this.model.name, shippingAddress: this.model.address, shippingPhone: this.model.phone };
+    if (this.promoValid && this.promoCode) body.promoCode = this.promoCode.trim();
+    body.region = this.selectedRegion;
+
+    this.cart.checkout(body).subscribe({ next: () => { this.processing = false; this.router.navigate(['/orders']); }, error: (err: any) => {
+        this.processing = false;
+        const serverMessage = err?.error?.message;
+        const serverDetail = err?.error?.error;
+        alert((serverMessage ? serverMessage : 'Checkout failed') + (serverDetail ? '\n\n' + serverDetail : ''));
+      } });
   }
+
+  trackByProduct(index: number, item: any) { return item?.productId ?? item?.product?.id ?? index; }
 }

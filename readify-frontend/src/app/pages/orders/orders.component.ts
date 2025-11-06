@@ -5,11 +5,12 @@ import { MatCardModule } from '@angular/material/card';
 import { MatListModule } from '@angular/material/list';
 import { RouterModule } from '@angular/router';
 import { LoadingSkeletonComponent } from '../../components/loading-skeleton.component';
+import { LocalDatePipe } from '../../pipes/local-date.pipe';
 
 @Component({
   selector: 'app-orders',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatListModule, RouterModule, LoadingSkeletonComponent],
+  imports: [CommonModule, MatCardModule, MatListModule, RouterModule, LoadingSkeletonComponent, LocalDatePipe],
   styles: [
     `.order-title { font-weight: 600; font-size: 1rem; margin: 0; }
      .order-meta { font-size: 0.95rem; color: rgba(0,0,0,0.75); margin: 0; }
@@ -30,7 +31,7 @@ import { LoadingSkeletonComponent } from '../../components/loading-skeleton.comp
           <mat-list-item *ngFor="let o of orders">
             <a [routerLink]="['/orders', o.id]" class="order-link">
               <div style="width:100%">
-                <div class="order-title">Order #{{ o.id }} - {{ o.orderDate | date:'medium' }}</div>
+                <div class="order-title">Order #{{ o.id }} - {{ o.orderDate | localDate:'medium' }}</div>
                 <div class="order-meta">Total: {{ o.totalAmount | currency }} — Status: {{ o.status }}</div>
               </div>
             </a>

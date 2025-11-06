@@ -125,6 +125,65 @@ public class CartController : ControllerBase
         }
     }
 
+    // New: Merge local cart items into server-side cart in a single transaction
+    [HttpPost("merge")]
+    public async Task<IActionResult> MergeLocalCart([FromBody] List<MergeCartItem> items)
+    {
+        if (items == null) return BadRequest(new { message = "Invalid payload" });
+
+        var userId = await GetUserIdFromClaimsAsync();
+        if (userId == null) return Unauthorized();
+
+        await using var tx = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var it in items)
+            {
+                if (it.ProductId <= 0 || it.Quantity <= 0) continue;
+
+                var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == it.ProductId);
+                if (product == null) continue; // skip missing product
+
+                var existing = await _context.CartItems.FirstOrDefaultAsync(c => c.UserId == userId.Value && c.ProductId == it.ProductId);
+                if (existing == null)
+                {
+                    var qty = it.Quantity;
+                    if (product.StockQty > 0 && qty > product.StockQty) qty = product.StockQty;
+                    _context.CartItems.Add(new CartItem { UserId = userId.Value, ProductId = it.ProductId, Quantity = qty });
+                }
+                else
+                {
+                    var newQty = existing.Quantity + it.Quantity;
+                    if (product.StockQty > 0 && newQty > product.StockQty) newQty = product.StockQty;
+                    existing.Quantity = newQty;
+                    _context.CartItems.Update(existing);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            var merged = await _context.CartItems.Include(c => c.Product).Where(c => c.UserId == userId.Value).ToListAsync();
+            return Ok(merged);
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync();
+            _logger.LogError(ex, "MergeLocalCart failed");
+            return StatusCode(500, new { message = "Failed to merge cart" });
+        }
+    }
+
+    // Endpoint to validate promo code
+    [HttpGet("promo/{code}")]
+    public async Task<IActionResult> ValidatePromo(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return BadRequest(new { message = "Promo code required" });
+        var promo = await _context.PromoCodes.FirstOrDefaultAsync(p => p.Code == code && p.IsActive);
+        if (promo == null) return NotFound(new { message = "Promo code not found or inactive" });
+        return Ok(new { code = promo.Code, discountPercent = promo.DiscountPercent, fixedAmount = promo.FixedAmount, type = promo.Type });
+    }
+
     // Update quantity for an item by productId
     [HttpPut("update")]
     public async Task<IActionResult> UpdateQuantity([FromBody] UpdateCartRequest req)
@@ -162,6 +221,13 @@ public class CartController : ControllerBase
         }
     }
 
+    // PATCH: convenience endpoint to update quantity by productId
+    [HttpPatch("update-item")]
+    public async Task<IActionResult> UpdateItemQuantity([FromBody] UpdateCartRequest req)
+    {
+        return await UpdateQuantity(req);
+    }
+
     [HttpDelete("{productId}")]
     public async Task<IActionResult> RemoveFromCart(int productId)
     {
@@ -186,6 +252,12 @@ public class CartController : ControllerBase
 }
 
 public class UpdateCartRequest
+{
+    public int ProductId { get; set; }
+    public int Quantity { get; set; }
+}
+
+public class MergeCartItem
 {
     public int ProductId { get; set; }
     public int Quantity { get; set; }

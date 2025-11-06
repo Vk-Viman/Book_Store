@@ -45,10 +45,11 @@ Readify is a full-stack bookstore management application built with **ASP.NET Co
 - Toast notifications for user actions
 - Password visibility toggles
 - Inline form validation
+- Centralized `localDate` pipe for date formatting in the frontend (default timezone configured via `src/environments/environment.ts` - `defaultTimezone: 'Asia/Colombo'`).
 
 ### Technical Features
 - Response caching (60s for catalog endpoints)
-- Response compression (gzip + brotli)
+- Response compression (gzip/brotli)
 - Email subsystem (logged to DB for simulation, SMTP-ready)
 - Comprehensive audit logging
 - Image validation and optimization

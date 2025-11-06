@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { LoginComponent } from './pages/login/login.component';
 import { RegisterComponent } from './pages/register/register.component';
 import { authGuard } from './guards/auth.guard';
+import { adminGuard } from './guards/admin.guard';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'books', pathMatch: 'full' },
@@ -22,10 +23,14 @@ export const routes: Routes = [
   { path: 'checkout', loadComponent: () => import('./pages/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },
 
   // Admin area
-  { path: 'admin/dashboard', loadComponent: () => import('./pages/admin/admin-dashboard.component').then(m => m.AdminDashboardComponent), canActivate: [authGuard] },
-  { path: 'admin/products', loadComponent: () => import('./pages/admin/product-list.component').then(m => m.AdminProductListComponent), canActivate: [authGuard] },
-  { path: 'admin/products/new', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [authGuard] },
-  { path: 'admin/products/:id', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [authGuard] },
+  { path: 'admin/dashboard', loadComponent: () => import('./pages/admin/admin-dashboard.component').then(m => m.AdminDashboardComponent), canActivate: [adminGuard] },
+  { path: 'admin/products', loadComponent: () => import('./pages/admin/product-list.component').then(m => m.AdminProductListComponent), canActivate: [adminGuard] },
+  { path: 'admin/products/new', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [adminGuard] },
+  { path: 'admin/products/:id', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [adminGuard] },
+  { path: 'admin/promos', loadComponent: () => import('./pages/admin/promo-list.component').then(m => m.AdminPromoListComponent), canActivate: [adminGuard] },
+  { path: 'admin/promos/new', loadComponent: () => import('./pages/admin/promo-form.component').then(m => m.AdminPromoFormComponent), canActivate: [adminGuard] },
+  { path: 'admin/promos/:id', loadComponent: () => import('./pages/admin/promo-edit.component').then(m => m.AdminPromoEditComponent), canActivate: [adminGuard] },
+  { path: 'admin/shipping', loadComponent: () => import('./pages/admin/shipping-form.component').then(m => m.AdminShippingFormComponent), canActivate: [adminGuard] },
 
   { path: '**', redirectTo: 'books' }
 ];

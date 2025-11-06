@@ -9,19 +9,23 @@ namespace Readify.Migrations
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<byte[]>(
-                name: "RowVersion",
-                table: "Product",
-                type: "rowversion",
-                rowVersion: true,
-                nullable: true);
+            // Add RowVersion column if it does not already exist - idempotent for environments
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Product','RowVersion') IS NULL
+BEGIN
+    ALTER TABLE [Product] ADD [RowVersion] rowversion;
+END
+");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "RowVersion",
-                table: "Product");
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Product','RowVersion') IS NOT NULL
+BEGIN
+    ALTER TABLE [Product] DROP COLUMN [RowVersion];
+END
+");
         }
     }
 }

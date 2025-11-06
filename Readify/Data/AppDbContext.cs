@@ -18,6 +18,8 @@ namespace Readify.Data
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<PromoCode> PromoCodes { get; set; }
+        public DbSet<ShippingSetting> ShippingSettings { get; set; }
         // Alias for readability: treat products as books in the app domain
         public DbSet<Product> Books => Products;
 
@@ -72,6 +74,18 @@ namespace Readify.Data
                 .WithMany()
                 .HasForeignKey(c => c.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PromoCode>()
+                .Property(p => p.DiscountPercent)
+                .HasColumnType("decimal(5,2)");
+
+            modelBuilder.Entity<PromoCode>()
+                .Property(p => p.FixedAmount)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<PromoCode>()
+                .Property(p => p.Type)
+                .HasMaxLength(32);
         }
     }
 }

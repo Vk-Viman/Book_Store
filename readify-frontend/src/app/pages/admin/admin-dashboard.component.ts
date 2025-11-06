@@ -143,11 +143,11 @@ export class AdminDashboardComponent {
 
   loadStats() {
     this.http.get<DashboardStats>('/api/admin/dashboard/stats').subscribe({
-      next: (data) => {
+      next: (data: DashboardStats) => {
         this.stats = data;
         this.loading = false;
       },
-      error: () => {
+      error: (_err: any) => {
         this.loading = false;
       }
     });

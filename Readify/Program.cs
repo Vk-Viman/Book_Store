@@ -58,6 +58,10 @@ builder.Services.AddScoped<IUserService, UserService>();
 // register mock payment service
 builder.Services.AddSingleton<IPaymentService, MockPaymentService>();
 
+// register shipping options and shipping service
+builder.Services.Configure<ShippingOptions>(builder.Configuration.GetSection("Shipping"));
+builder.Services.AddScoped<IShippingService, ShippingService>();
+
 // CORS for Angular dev
 builder.Services.AddCors(options =>
 {
@@ -100,7 +104,8 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbInitializer");
-    await DbInitializer.InitializeAsync(db, config, logger);
+    var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+    await DbInitializer.InitializeAsync(db, config, logger, env);
 }
 
 // Configure the HTTP request pipeline.

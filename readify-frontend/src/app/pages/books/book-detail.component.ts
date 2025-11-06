@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ProductService } from '../../services/product.service';
 import { CartService } from '../../services/cart.service';
 import { NotificationService } from '../../services/notification.service';
+import { LocalDatePipe } from '../../pipes/local-date.pipe';
 
 @Component({
   selector: 'app-book-detail',
@@ -20,7 +21,8 @@ import { NotificationService } from '../../services/notification.service';
     MatButtonModule,
     MatIconModule,
     MatChipsModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    LocalDatePipe
   ],
   template: `
   <div class="container mt-4">
@@ -256,7 +258,7 @@ export class BookDetailComponent {
     if (this.id) this.load();
 
     // refresh product when an order completes to show updated stock
-    this.cart.orderCompleted$.subscribe(() => { if (this.id) this.refreshProduct(); });
+    this.cart.orderCompleted$.subscribe({ next: () => { if (this.id) this.refreshProduct(); } });
   }
 
   onImgError(event: Event) {
@@ -267,10 +269,7 @@ export class BookDetailComponent {
   load() {
     this.error = '';
     this.loading = true;
-    this.productService.getProduct(this.id!).subscribe(
-      (res: any) => { this.product = res; this.loading = false; },
-      (err: any) => { console.error('Failed to load product', err); this.error = 'Failed to load book details. Please try again later.'; this.loading = false; }
-    );
+    this.productService.getProduct(this.id!).subscribe({ next: (res: any) => { this.product = res; this.loading = false; }, error: (err: any) => { console.error('Failed to load product', err); this.error = 'Failed to load book details. Please try again later.'; this.loading = false; } });
   }
 
   refreshProduct() {
@@ -280,9 +279,6 @@ export class BookDetailComponent {
 
   addToCart() {
     if (!this.product) return;
-    this.cart.addToCart(this.product.id).subscribe(
-      () => { this.notify.success(`${this.product.title} added to cart`); },
-      (err: any) => { const msg = err?.error?.message || err?.message || 'Failed to add to cart'; this.notify.error(msg); }
-    );
+    this.cart.addToCart(this.product.id).subscribe({ next: () => { this.notify.success(`${this.product.title} added to cart`); }, error: (err: any) => { const msg = err?.error?.message || err?.message || 'Failed to add to cart'; this.notify.error(msg); } });
   }
 }

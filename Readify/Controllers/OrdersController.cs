@@ -20,12 +20,13 @@ public class OrdersController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IEmailService _email;
     private readonly ILogger<OrdersController> _logger;
+    private readonly IShippingService _shipping;
 
-    public OrdersController(AppDbContext context, IEmailService email, ILogger<OrdersController> logger) => (_context, _email, _logger) = (context, email, logger);
+    public OrdersController(AppDbContext context, IEmailService email, ILogger<OrdersController> logger, IShippingService shipping) => (_context, _email, _logger, _shipping) = (context, email, logger, shipping);
 
     private async Task<int?> GetUserIdFromClaimsAsync()
     {
-        var uid = User.FindFirst("userId")?.Value;
+        string? uid = User.FindFirst("userId")?.Value;
         if (!string.IsNullOrEmpty(uid) && int.TryParse(uid, out var parsed)) return parsed;
 
         uid = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -48,6 +49,32 @@ public class OrdersController : ControllerBase
         return null;
     }
 
+    private static DateTime ConvertUtcToSriLanka(DateTime utc)
+    {
+        try
+        {
+            // ensure utc kind
+            var utcTime = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+            // Try Windows id first, fall back to IANA
+            TimeZoneInfo? tz = null;
+            try { tz = TimeZoneInfo.FindSystemTimeZoneById("Sri Lanka Standard Time"); } catch { }
+            if (tz == null)
+            {
+                try { tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Colombo"); } catch { }
+            }
+            if (tz == null)
+            {
+                // fallback to adding offset of +5:30
+                return utcTime.AddHours(5).AddMinutes(30);
+            }
+            return TimeZoneInfo.ConvertTimeFromUtc(utcTime, tz);
+        }
+        catch
+        {
+            return DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+        }
+    }
+
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout([FromBody] CheckoutDto dto)
     {
@@ -64,8 +91,60 @@ public class OrdersController : ControllerBase
 
             if (!cartItems.Any()) return BadRequest(new { message = "Cart is empty." });
 
-            var computedTotal = cartItems.Sum(c => (c.Product?.Price ?? 0m) * c.Quantity);
-            _logger.LogInformation("Computed cart total for user {UserId} is {Total}", userId.Value, computedTotal);
+            var subtotal = cartItems.Sum(c => (c.Product?.Price ?? 0m) * c.Quantity);
+
+            _logger.LogInformation("Computed cart subtotal for user {UserId} is {Subtotal}", userId.Value, subtotal);
+
+            // Apply promo code if provided
+            decimal? discountPercent = null;
+            decimal discountAmount = 0m;
+            bool freeShipping = false;
+            string? appliedType = null;
+
+            if (!string.IsNullOrWhiteSpace(dto?.PromoCode))
+            {
+                try
+                {
+                    var promo = await _context.PromoCodes.FirstOrDefaultAsync(p => p.Code == dto.PromoCode && p.IsActive);
+                    if (promo != null)
+                    {
+                        appliedType = promo.Type;
+                        if (string.Equals(promo.Type, "Percentage", StringComparison.OrdinalIgnoreCase))
+                        {
+                            discountPercent = promo.DiscountPercent;
+                            discountAmount = Math.Round((subtotal * (decimal)promo.DiscountPercent) / 100m, 2);
+                        }
+                        else if (string.Equals(promo.Type, "Fixed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            discountAmount = promo.FixedAmount ?? 0m;
+                            discountPercent = null;
+                        }
+                        else if (string.Equals(promo.Type, "FreeShipping", StringComparison.OrdinalIgnoreCase))
+                        {
+                            freeShipping = true;
+                        }
+
+                        _logger.LogInformation("Applied promo code {Code} type {Type} discount amount {Amount}", promo.Code, promo.Type, discountAmount);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Promo code {Code} not found or inactive", dto.PromoCode);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to validate promo code {Code}", dto.PromoCode);
+                }
+            }
+
+            // server calculates shipping using shipping service; do not trust client-provided shippingCost
+            var region = dto?.Region ?? "national";
+            var shippingCost = await _shipping.GetRateAsync(region, subtotal);
+            if (freeShipping) shippingCost = 0m;
+
+            // compute total = subtotal + shipping - discount
+            var computedTotal = subtotal + shippingCost - discountAmount;
+            if (computedTotal < 0) computedTotal = 0m;
 
             // Use a transaction to ensure order creation and cart removal are atomic
             await using var tx = await _context.Database.BeginTransactionAsync();
@@ -91,8 +170,6 @@ public class OrdersController : ControllerBase
                     }
                 }
 
-                // Try a mock charge before creating order (non-blocking failure handling)
-                var charged = true; // default true
                 // If a payment service is registered in DI, use it
                 try
                 {
@@ -117,6 +194,7 @@ public class OrdersController : ControllerBase
                 var order = new Order
                 {
                     UserId = userId.Value,
+                    OrderDate = DateTime.UtcNow, // ensure stored time is UTC
                     Items = cartItems.Select(c => new OrderItem
                     {
                         ProductId = c.ProductId,
@@ -126,7 +204,12 @@ public class OrdersController : ControllerBase
                     TotalAmount = computedTotal,
                     ShippingName = dto?.ShippingName,
                     ShippingAddress = dto?.ShippingAddress,
-                    ShippingPhone = dto?.ShippingPhone
+                    ShippingPhone = dto?.ShippingPhone,
+                    ShippingCost = shippingCost,
+                    PromoCode = string.IsNullOrWhiteSpace(dto?.PromoCode) ? null : dto.PromoCode,
+                    DiscountPercent = discountPercent,
+                    DiscountAmount = discountAmount,
+                    FreeShipping = freeShipping
                 };
 
                 try
@@ -189,6 +272,8 @@ public class OrdersController : ControllerBase
                         .Include(o => o.Items).ThenInclude(i => i.Product)
                         .FirstOrDefaultAsync(o => o.Id == order.Id);
 
+                    // Do not convert OrderDate to a specific timezone on the server. Return UTC and let the client format for the user's locale.
+
                     // send confirmation via logging email (non-blocking)
                     try
                     {
@@ -247,6 +332,9 @@ public class OrdersController : ControllerBase
                 .Include(o => o.Items).ThenInclude(i => i.Product)
                 .Where(o => o.UserId == userId.Value)
                 .ToListAsync();
+
+            // Return OrderDate in UTC; clients should convert to local display time.
+
             return Ok(orders);
         }
         catch (Exception ex)

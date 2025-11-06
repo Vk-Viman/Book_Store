@@ -33,6 +33,14 @@
           <mat-icon>inventory_2</mat-icon>
           <span>Products</span>
         </a>
+        <a mat-menu-item routerLink="/admin/promos" *ngIf="(isAdmin$ | async)">
+          <mat-icon>local_offer</mat-icon>
+          <span>Promos</span>
+        </a>
+        <a mat-menu-item routerLink="/admin/shipping" *ngIf="(isAdmin$ | async)">
+          <mat-icon>local_shipping</mat-icon>
+          <span>Shipping</span>
+        </a>
       </mat-menu>
     </nav>
     
@@ -85,6 +93,14 @@
         <a mat-menu-item routerLink="/admin/products">
           <mat-icon>inventory_2</mat-icon>
           <span>Products</span>
+        </a>
+        <a mat-menu-item routerLink="/admin/promos">
+          <mat-icon>local_offer</mat-icon>
+          <span>Promos</span>
+        </a>
+        <a mat-menu-item routerLink="/admin/shipping">
+          <mat-icon>local_shipping</mat-icon>
+          <span>Shipping</span>
         </a>
       </div>
       <mat-divider></mat-divider>

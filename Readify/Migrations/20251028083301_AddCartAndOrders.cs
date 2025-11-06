@@ -11,172 +11,216 @@ namespace Readify.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Alter Product.Title to nvarchar(450)
-            migrationBuilder.AlterColumn<string>(
-                name: "Title",
-                table: "Product",
-                type: "nvarchar(450)",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(max)");
+            // Alter Title column to nvarchar(450) only if not already altered
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'dbo.Product', N'U') IS NOT NULL
+BEGIN
+    IF EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Product' AND COLUMN_NAME = 'Title' AND DATA_TYPE = 'nvarchar' AND (CHARACTER_MAXIMUM_LENGTH IS NULL OR CHARACTER_MAXIMUM_LENGTH <> 450))
+    BEGIN
+        DECLARE @dc sysname;
+        SELECT @dc = d.name
+        FROM sys.default_constraints d
+        JOIN sys.columns c ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+        WHERE d.parent_object_id = OBJECT_ID(N'dbo.Product') AND c.name = N'Title';
+        IF @dc IS NOT NULL
+            EXEC(N'ALTER TABLE [dbo].[Product] DROP CONSTRAINT [' + @dc + ']');
+        ALTER TABLE [dbo].[Product] ALTER COLUMN [Title] nvarchar(450) NOT NULL;
+    END
+END
+");
 
-            // AuditLogs
-            migrationBuilder.CreateTable(
-                name: "AuditLogs",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: true),
-                    Action = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Entity = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    EntityId = table.Column<int>(type: "int", nullable: true),
-                    Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Details = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
-                });
+            // Create AuditLogs if missing
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[AuditLogs]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AuditLogs](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] int NULL,
+        [Action] nvarchar(max) NOT NULL,
+        [Entity] nvarchar(max) NOT NULL,
+        [EntityId] int NULL,
+        [Timestamp] datetime2 NOT NULL,
+        [Details] nvarchar(max) NULL
+    );
+END
+");
 
-            // CartItems
-            migrationBuilder.CreateTable(
-                name: "CartItems",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    ProductId = table.Column<int>(type: "int", nullable: false),
-                    Quantity = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CartItems", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_CartItems_Product_ProductId",
-                        column: x => x.ProductId,
-                        principalTable: "Product",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            // Create CartItems if missing
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[CartItems]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[CartItems](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] int NOT NULL,
+        [ProductId] int NOT NULL,
+        [Quantity] int NOT NULL
+    );
+    IF OBJECT_ID(N'[dbo].[CartItems]', N'U') IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_CartItems_Product_ProductId')
+    BEGIN
+        ALTER TABLE [dbo].[CartItems] ADD CONSTRAINT FK_CartItems_Product_ProductId FOREIGN KEY (ProductId) REFERENCES [Product](Id) ON DELETE CASCADE;
+    END
+END
+");
 
-            // EmailLogs
-            migrationBuilder.CreateTable(
-                name: "EmailLogs",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    To = table.Column<string>(type: "nvarchar(400)", maxLength: 400, nullable: false),
-                    Subject = table.Column<string>(type: "nvarchar(400)", maxLength: 400, nullable: false),
-                    Body = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Success = table.Column<bool>(type: "bit", nullable: false),
-                    Error = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Provider = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_EmailLogs", x => x.Id);
-                });
+            // Create EmailLogs if missing
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[EmailLogs]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[EmailLogs](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [To] nvarchar(400) NOT NULL,
+        [Subject] nvarchar(400) NOT NULL,
+        [Body] nvarchar(max) NOT NULL,
+        [SentAt] datetime2 NOT NULL,
+        [Success] bit NOT NULL,
+        [Error] nvarchar(max) NULL,
+        [Provider] nvarchar(100) NOT NULL
+    );
+END
+");
 
-            // Orders (include shipping columns)
-            migrationBuilder.CreateTable(
-                name: "Orders",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    OrderDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    ShippingName = table.Column<string>(type: "nvarchar(400)", maxLength: 400, nullable: true),
-                    ShippingAddress = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    ShippingPhone = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Orders", x => x.Id);
-                });
+            // Create Orders if missing (shipping columns will be added by later sync migration)
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Orders](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] int NOT NULL,
+        [OrderDate] datetime2 NOT NULL,
+        [TotalAmount] decimal(18,2) NOT NULL,
+        [Status] nvarchar(max) NOT NULL
+    );
+END
+");
 
-            // UserProfileUpdates
-            migrationBuilder.CreateTable(
-                name: "UserProfileUpdates",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    OldFullName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    OldEmail = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    NewFullName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    NewEmail = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_UserProfileUpdates", x => x.Id);
-                });
+            // Create UserProfileUpdates if missing
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[UserProfileUpdates]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[UserProfileUpdates](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] int NOT NULL,
+        [OldFullName] nvarchar(max) NOT NULL,
+        [OldEmail] nvarchar(max) NOT NULL,
+        [NewFullName] nvarchar(max) NOT NULL,
+        [NewEmail] nvarchar(max) NOT NULL,
+        [UpdatedAt] datetime2 NOT NULL
+    );
+END
+");
 
-            // OrderItems
-            migrationBuilder.CreateTable(
-                name: "OrderItems",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    OrderId = table.Column<int>(type: "int", nullable: false),
-                    ProductId = table.Column<int>(type: "int", nullable: false),
-                    Quantity = table.Column<int>(type: "int", nullable: false),
-                    UnitPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_OrderItems", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_OrderItems_Orders_OrderId",
-                        column: x => x.OrderId,
-                        principalTable: "Orders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_OrderItems_Product_ProductId",
-                        column: x => x.ProductId,
-                        principalTable: "Product",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            // Create OrderItems if missing
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[OrderItems]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[OrderItems](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [OrderId] int NOT NULL,
+        [ProductId] int NOT NULL,
+        [Quantity] int NOT NULL,
+        [UnitPrice] decimal(18,2) NOT NULL
+    );
+    IF OBJECT_ID(N'[dbo].[OrderItems]', N'U') IS NOT NULL
+    BEGIN
+        IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_OrderItems_Orders_OrderId')
+        BEGIN
+            ALTER TABLE [dbo].[OrderItems] ADD CONSTRAINT FK_OrderItems_Orders_OrderId FOREIGN KEY (OrderId) REFERENCES [Orders](Id) ON DELETE CASCADE;
+        END
+        IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_OrderItems_Product_ProductId')
+        BEGIN
+            ALTER TABLE [dbo].[OrderItems] ADD CONSTRAINT FK_OrderItems_Product_ProductId FOREIGN KEY (ProductId) REFERENCES [Product](Id) ON DELETE CASCADE;
+        END
+    END
+END
+");
 
-            // Indexes
-            migrationBuilder.CreateIndex(name: "IX_Product_Price", table: "Product", column: "Price");
-            migrationBuilder.CreateIndex(name: "IX_Product_Title", table: "Product", column: "Title");
-            migrationBuilder.CreateIndex(name: "IX_CartItems_ProductId", table: "CartItems", column: "ProductId");
-            migrationBuilder.CreateIndex(name: "IX_OrderItems_OrderId", table: "OrderItems", column: "OrderId");
-            migrationBuilder.CreateIndex(name: "IX_OrderItems_ProductId", table: "OrderItems", column: "ProductId");
+            // Create indexes if missing (only create title index if column is suitable)
+            migrationBuilder.Sql(@"
+IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Product' AND COLUMN_NAME='Title' AND DATA_TYPE='nvarchar' AND CHARACTER_MAXIMUM_LENGTH >= 450)
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = 'IX_Product_Price' AND object_id = OBJECT_ID('Product'))
+    BEGIN
+        CREATE INDEX IX_Product_Price ON Product(Price);
+    END
+    IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = 'IX_Product_Title' AND object_id = OBJECT_ID('Product'))
+    BEGIN
+        CREATE INDEX IX_Product_Title ON Product(Title);
+    END
+END
+ELSE
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = 'IX_Product_Price' AND object_id = OBJECT_ID('Product'))
+    BEGIN
+        CREATE INDEX IX_Product_Price ON Product(Price);
+    END
+END
+");
+            migrationBuilder.Sql(@"
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = 'IX_CartItems_ProductId' AND object_id = OBJECT_ID('CartItems'))
+BEGIN
+    CREATE INDEX IX_CartItems_ProductId ON CartItems(ProductId);
+END
+");
+            migrationBuilder.Sql(@"
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = 'IX_OrderItems_OrderId' AND object_id = OBJECT_ID('OrderItems'))
+BEGIN
+    CREATE INDEX IX_OrderItems_OrderId ON OrderItems(OrderId);
+END
+");
+            migrationBuilder.Sql(@"
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name = 'IX_OrderItems_ProductId' AND object_id = OBJECT_ID('OrderItems'))
+BEGIN
+    CREATE INDEX IX_OrderItems_ProductId ON OrderItems(ProductId);
+END
+");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(name: "OrderItems");
-            migrationBuilder.DropTable(name: "UserProfileUpdates");
-            migrationBuilder.DropTable(name: "Orders");
-            migrationBuilder.DropTable(name: "EmailLogs");
-            migrationBuilder.DropTable(name: "CartItems");
-            migrationBuilder.DropTable(name: "AuditLogs");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[OrderItems]', N'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[OrderItems];
+END
+");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[UserProfileUpdates]', N'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[UserProfileUpdates];
+END
+");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[Orders];
+END
+");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[EmailLogs]', N'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[EmailLogs];
+END
+");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[CartItems]', N'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[CartItems];
+END
+");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[AuditLogs]', N'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[AuditLogs];
+END
+");
 
-            migrationBuilder.DropIndex(name: "IX_Product_Title", table: "Product");
-            migrationBuilder.DropIndex(name: "IX_Product_Price", table: "Product");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Title",
-                table: "Product",
-                type: "nvarchar(max)",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "nvarchar(450)");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[dbo].[Product]', N'U') IS NOT NULL AND EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Product' AND COLUMN_NAME='Title' AND DATA_TYPE='nvarchar' AND CHARACTER_MAXIMUM_LENGTH=450)
+BEGIN
+    ALTER TABLE [dbo].[Product] ALTER COLUMN [Title] nvarchar(max) NOT NULL;
+END
+");
         }
     }
 }

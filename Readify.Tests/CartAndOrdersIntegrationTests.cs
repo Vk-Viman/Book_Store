@@ -5,6 +5,9 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Xunit;
 using System.Text.Json;
+using Readify.Data;
+using Readify.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 public class CartAndOrdersIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -96,5 +99,151 @@ public class CartAndOrdersIntegrationTests : IClassFixture<WebApplicationFactory
         // pick unlikely product id
         var res = await client.DeleteAsync($"/api/cart/{int.MaxValue}");
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Checkout_AppliesPromoCode_ReducesTotal()
+    {
+        // arrange: create promo in DB
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.PromoCodes.Add(new PromoCode { Code = "PROMO10", DiscountPercent = 10m, Type = "Percentage", IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        var token = await LoginAsync();
+        Assert.False(string.IsNullOrEmpty(token));
+
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // pick a product
+        var productsRes = await client.GetAsync("/api/products");
+        productsRes.EnsureSuccessStatusCode();
+        var productsJson = await productsRes.Content.ReadAsStringAsync();
+        var root = JsonDocument.Parse(productsJson).RootElement;
+        var items = root.GetProperty("items").EnumerateArray();
+        Assert.True(items.MoveNext());
+        var first = items.Current;
+        var productId = first.GetProperty("id").GetInt32();
+        var price = first.GetProperty("price").GetDecimal();
+
+        // ensure cart empty
+        var cartBefore = await client.GetFromJsonAsync<JsonElement[]>"/api/cart";
+        if (cartBefore != null)
+        {
+            foreach (var it in cartBefore)
+            {
+                var pid = it.GetProperty("productId").GetInt32();
+                await client.DeleteAsync($"/api/cart/{pid}");
+            }
+        }
+
+        // add to cart quantity 2
+        var addRes = await client.PostAsync($"/api/cart/{productId}?quantity=2", null);
+        Assert.Equal(HttpStatusCode.OK, addRes.StatusCode);
+
+        // checkout with promo
+        var checkoutRes = await client.PostAsJsonAsync("/api/orders/checkout", new { promoCode = "PROMO10" });
+        checkoutRes.EnsureSuccessStatusCode();
+        var order = await checkoutRes.Content.ReadFromJsonAsync<JsonElement>();
+        var total = order.GetProperty("totalAmount").GetDecimal();
+        var expected = Math.Round(price * 2 * 0.90m, 2);
+        Assert.Equal(expected, total);
+    }
+
+    [Fact]
+    public async Task Checkout_AppliesFreeShippingPromo_SetsFreeShippingAndRemovesShippingCost()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.PromoCodes.Add(new PromoCode { Code = "FREESHIP", Type = "FreeShipping", IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        var token = await LoginAsync();
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // pick a product and add to cart
+        var productsRes = await client.GetAsync("/api/products");
+        productsRes.EnsureSuccessStatusCode();
+        var productsJson = await productsRes.Content.ReadAsStringAsync();
+        var root = JsonDocument.Parse(productsJson).RootElement;
+        var items = root.GetProperty("items").EnumerateArray();
+        Assert.True(items.MoveNext());
+        var first = items.Current;
+        var productId = first.GetProperty("id").GetInt32();
+        var price = first.GetProperty("price").GetDecimal();
+
+        // ensure cart empty
+        var cartBefore = await client.GetFromJsonAsync<JsonElement[]>"/api/cart";
+        if (cartBefore != null)
+        {
+            foreach (var it in cartBefore)
+            {
+                var pid = it.GetProperty("productId").GetInt32();
+                await client.DeleteAsync($"/api/cart/{pid}");
+            }
+        }
+
+        var addRes = await client.PostAsync($"/api/cart/{productId}?quantity=1", null);
+        addRes.EnsureSuccessStatusCode();
+
+        var checkoutRes = await client.PostAsJsonAsync("/api/orders/checkout", new { promoCode = "FREESHIP", region = "national" });
+        checkoutRes.EnsureSuccessStatusCode();
+        var order = await checkoutRes.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(order.GetProperty("freeShipping").GetBoolean());
+        var total = order.GetProperty("totalAmount").GetDecimal();
+        Assert.Equal(price, total);
+    }
+
+    [Fact]
+    public async Task Checkout_AppliesFixedPromo_ReducesTotalByFixedAmount()
+    {
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.PromoCodes.Add(new PromoCode { Code = "FIXED5", Type = "Fixed", FixedAmount = 5.00m, IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        var token = await LoginAsync();
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // pick a product and add to cart
+        var productsRes = await client.GetAsync("/api/products");
+        productsRes.EnsureSuccessStatusCode();
+        var productsJson = await productsRes.Content.ReadAsStringAsync();
+        var root = JsonDocument.Parse(productsJson).RootElement;
+        var items = root.GetProperty("items").EnumerateArray();
+        Assert.True(items.MoveNext());
+        var first = items.Current;
+        var productId = first.GetProperty("id").GetInt32();
+        var price = first.GetProperty("price").GetDecimal();
+
+        // ensure cart empty
+        var cartBefore = await client.GetFromJsonAsync<JsonElement[]>"/api/cart";
+        if (cartBefore != null)
+        {
+            foreach (var it in cartBefore)
+            {
+                var pid = it.GetProperty("productId").GetInt32();
+                await client.DeleteAsync($"/api/cart/{pid}");
+            }
+        }
+
+        var addRes = await client.PostAsync($"/api/cart/{productId}?quantity=2", null);
+        addRes.EnsureSuccessStatusCode();
+
+        var checkoutRes = await client.PostAsJsonAsync("/api/orders/checkout", new { promoCode = "FIXED5", region = "national" });
+        checkoutRes.EnsureSuccessStatusCode();
+        var order = await checkoutRes.Content.ReadFromJsonAsync<JsonElement>();
+        var total = order.GetProperty("totalAmount").GetDecimal();
+        var expected = Math.Round(price * 2 - 5.00m, 2);
+        Assert.Equal(expected, total);
     }
 }

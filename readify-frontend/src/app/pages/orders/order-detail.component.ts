@@ -1,19 +1,21 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CartService } from '../../services/cart.service';
 import { MatCardModule } from '@angular/material/card';
 import { MatListModule } from '@angular/material/list';
+import { HttpClient } from '@angular/common/http';
+import { LocalDatePipe } from '../../pipes/local-date.pipe';
 
 @Component({
   selector: 'app-order-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatCardModule, MatListModule],
+  imports: [CommonModule, RouterModule, MatCardModule, MatListModule, LocalDatePipe],
   template: `
   <div class="container mt-4">
-    <button class="btn btn-link mb-2" routerLink="/orders">← Back to orders</button>
+    <button class="btn btn-link mb-2" (click)="back()">← Back to orders</button>
     <mat-card *ngIf="order">
-      <mat-card-title>Order #{{ order.id }} — {{ order.orderDate | date:'medium' }}</mat-card-title>
+      <mat-card-title>Order #{{ order.id }} — {{ order.orderDate | localDate:'medium' }}</mat-card-title>
       <mat-card-subtitle>Status: {{ order.status }} — Total: {{ order.totalAmount | currency }}</mat-card-subtitle>
       <mat-card-content class="mt-2">
         <h5>Shipping</h5>
@@ -30,6 +32,10 @@ import { MatListModule } from '@angular/material/list';
             </div>
           </mat-list-item>
         </mat-list>
+
+        <div *ngIf="isDev" class="mt-3">
+          <button class="btn btn-danger" (click)="deleteOrder()">Delete Order (dev only)</button>
+        </div>
       </mat-card-content>
     </mat-card>
 
@@ -41,14 +47,25 @@ import { MatListModule } from '@angular/material/list';
 export class OrderDetailComponent {
   order: any = null;
   loading = false;
+  isDev = false;
 
-  constructor(private route: ActivatedRoute, private cart: CartService) {
+  constructor(private route: ActivatedRoute, private cart: CartService, private router: Router, private http: HttpClient) {
+    this.isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     this.load();
   }
+
+  back() { this.router.navigate(['/orders']); }
 
   load() {
     this.loading = true;
     const id = Number(this.route.snapshot.paramMap.get('id'));
     this.cart.getOrders().subscribe({ next: (res: any) => { this.order = (res || []).find((o: any) => o.id === id) ?? null; this.loading = false; }, error: () => { this.loading = false; } });
+  }
+
+  deleteOrder() {
+    if (!confirm('Delete this order? This is a development-only action.')) return;
+    // call backend dev endpoint to remove order
+    const apiBase = (window as any)['__env']?.apiUrl ?? 'http://localhost:5005/api';
+    this.http.delete(`${apiBase}/admin/orders/${this.order.id}`).subscribe({ next: () => { alert('Deleted'); this.router.navigate(['/orders']); }, error: () => alert('Failed to delete') });
   }
 }

@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, tap, catchError, of, Observable, Subject } from 'rxjs';
+import { BehaviorSubject, tap, catchError, of, Observable, Subject, throwError, from } from 'rxjs';
 import { AuthService } from './auth.service';
 
 const LOCAL_CART_KEY = 'readify_cart_v1';
+
+interface LocalCartItem { productId: number; quantity: number; product?: any }
 
 @Injectable({ providedIn: 'root' })
 export class CartService {
@@ -14,26 +16,63 @@ export class CartService {
   private _orderCompleted = new Subject<void>();
   orderCompleted$ = this._orderCompleted.asObservable();
 
+  private _wasLoggedIn = false;
+
   constructor(private http: HttpClient, private auth: AuthService) {
     // try to initialize count from server (silent) or local storage
     this.refreshCount();
+
+    // merge local cart into server cart when user logs in
+    this._wasLoggedIn = !!this.auth.getToken();
+    this.auth.isLoggedIn().subscribe((logged: boolean) => {
+      // if transitioning from logged-out -> logged-in, perform merge
+      if (!this._wasLoggedIn && logged) {
+        this.mergeLocalToServer();
+      }
+      this._wasLoggedIn = logged;
+    });
   }
 
-  private loadLocal(): any[] {
+  private loadLocal(): LocalCartItem[] {
     try {
       const raw = localStorage.getItem(LOCAL_CART_KEY);
       if (!raw) return [];
-      return JSON.parse(raw) as any[];
+      return JSON.parse(raw) as LocalCartItem[];
     } catch {
       return [];
     }
   }
 
-  private saveLocal(items: any[]) {
+  private saveLocal(items: LocalCartItem[]) {
     try {
       localStorage.setItem(LOCAL_CART_KEY, JSON.stringify(items));
       this._count.next(items.length);
     } catch { }
+  }
+
+  private mergeLocalToServer() {
+    const items = this.loadLocal();
+    if (!items || items.length === 0) return;
+
+    const token = this.auth.getToken();
+    if (!token) {
+      // nothing to do for guests
+      return;
+    }
+
+    // send all local items in one request to backend merge endpoint
+    const payload = items.map(i => ({ productId: i.productId, quantity: i.quantity }));
+    this.http.post('/api/cart/merge', payload).subscribe({
+      next: () => {
+        // clear local storage and refresh
+        this.saveLocal([]);
+        this.refreshCount();
+      },
+      error: () => {
+        // on failure, keep local cart but still refresh count
+        this.refreshCount();
+      }
+    });
   }
 
   getCart(): Observable<any[]> {
@@ -41,16 +80,16 @@ export class CartService {
     if (!token) {
       const local = this.loadLocal();
       this._count.next(local.length);
-      return of(local);
+      return from([local]);
     }
 
     return this.http.get<any[]>('/api/cart').pipe(
-      tap(items => this._count.next((items ?? []).length)),
+      tap((items: any[]) => this._count.next((items ?? []).length)),
       catchError(() => {
         // fallback to local
         const local = this.loadLocal();
         this._count.next(local.length);
-        return of(local);
+        return from([local]);
       })
     );
   }
@@ -66,7 +105,7 @@ export class CartService {
         items.push({ productId, quantity, product: productObj ?? null });
       }
       this.saveLocal(items);
-      return of({ ok: true });
+      return from([{ ok: true }]);
     }
 
     return this.http.post(`/api/cart/${productId}?quantity=${quantity}`, {}).pipe(
@@ -80,7 +119,7 @@ export class CartService {
     if (!token) {
       const items = this.loadLocal().filter(i => i.productId !== productId);
       this.saveLocal(items);
-      return of(null);
+      return from([null]);
     }
     return this.http.delete(`/api/cart/${productId}`).pipe(
       tap(() => this.refreshCount()),
@@ -97,13 +136,13 @@ export class CartService {
         if (quantity <= 0) {
           const filtered = items.filter(i => i.productId !== productId);
           this.saveLocal(filtered);
-          return of(null);
+          return from([null]);
         }
         existing.quantity = quantity;
         this.saveLocal(items);
-        return of(existing);
+        return from([existing]);
       }
-      return of(null);
+      return from([null]);
     }
     return this.http.put('/api/cart/update', { productId, quantity }).pipe(
       tap(() => this.refreshCount()),
@@ -111,18 +150,18 @@ export class CartService {
     );
   }
 
-  checkout(shipping?: { shippingName?: string; shippingAddress?: string; shippingPhone?: string }): Observable<any> {
+  checkout(shipping?: { shippingName?: string; shippingAddress?: string; shippingPhone?: string; promoCode?: string }): Observable<any> {
     const token = this.auth.getToken();
     if (!token) {
       // simulate order creation locally
       const items = this.loadLocal();
-      if (!items || items.length === 0) return of(new Error('Cart is empty'));
+      if (!items || items.length === 0) return throwError(() => new Error('Cart is empty'));
       // clear local cart
       this.saveLocal([]);
       this.refreshCount();
       // notify order completed so UI can refresh product data
       this._orderCompleted.next();
-      return of({ ok: true, local: true });
+      return from([{ ok: true, local: true }]);
     }
 
     // send shipping info as body to backend
@@ -134,7 +173,7 @@ export class CartService {
 
   getOrders(): Observable<any[]> {
     const token = this.auth.getToken();
-    if (!token) return of([]);
+    if (!token) return from([[]]);
     return this.http.get<any[]>('/api/orders');
   }
 
@@ -145,6 +184,6 @@ export class CartService {
       this._count.next(local.length);
       return;
     }
-    this.http.get<any[]>('/api/cart').subscribe({ next: items => this._count.next((items ?? []).length), error: () => this._count.next(0) });
+    this.http.get<any[]>('/api/cart').subscribe({ next: (items: any[]) => this._count.next((items ?? []).length), error: () => this._count.next(0) });
   }
 }

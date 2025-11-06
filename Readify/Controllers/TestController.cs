@@ -34,7 +34,7 @@ public class TestController : ControllerBase
             await _context.Database.MigrateAsync();
 
             _logger.LogInformation("Test reset: running DB initializer");
-            await DbInitializer.InitializeAsync(_context, _config, _logger);
+            await DbInitializer.InitializeAsync(_context, _config, _logger, _env);
 
             // return id of first product for tests
             var prod = await _context.Products.OrderBy(p => p.Id).FirstOrDefaultAsync();
