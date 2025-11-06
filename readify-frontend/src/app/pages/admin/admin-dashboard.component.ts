@@ -61,8 +61,12 @@ interface DashboardStats {
       <div *ngIf="!loading" class="row">
         <div class="col-12">
           <mat-card>
-            <mat-card-header>
+            <mat-card-header class="d-flex justify-content-between align-items-center">
               <mat-card-title>Top Products</mat-card-title>
+              <div class="btn-group">
+                <button class="btn btn-outline-secondary btn-sm me-2" (click)="exportChartPng()" [disabled]="!chart">Export PNG</button>
+                <button class="btn btn-outline-secondary btn-sm" (click)="exportCsv()" [disabled]="topProducts.length===0">Export CSV</button>
+              </div>
             </mat-card-header>
             <mat-card-content>
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
@@ -86,6 +90,7 @@ interface DashboardStats {
     .stat-label { font-size: 0.85rem; color: rgba(0,0,0,0.6); }
     .chart-wrap { position: relative; width: 100%; height: 300px; }
     canvas { width: 100% !important; height: 100% !important; display:block; }
+    .btn-group { display:flex; align-items:center; }
     @media (max-width: 767px) { .stat-value { font-size: 1.25rem; } .stat-card { min-width: 140px; } .chart-wrap { height: 220px; } }
   `]
 })
@@ -166,5 +171,36 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
             this.loading = false;
           }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
+  }
+
+  exportChartPng() {
+    if (!this.chart) return;
+    try {
+      const url = this.chart.toBase64Image();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `top-products-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (ex) {
+      console.warn('Export PNG failed', ex);
+    }
+  }
+
+  exportCsv() {
+    if (!this.topProducts || this.topProducts.length === 0) return;
+    const rows = [['Product','Quantity']];
+    for (const p of this.topProducts) rows.push([p.productName, String(p.quantitySold)]);
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `top-products-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
