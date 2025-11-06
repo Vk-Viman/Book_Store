@@ -1,4 +1,4 @@
-import { Component, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, ViewChild, ElementRef, ChangeDetectorRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -67,8 +67,9 @@ interface DashboardStats {
             <mat-card-content>
               <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
 
-              <div class="chart-wrap" *ngIf="topProducts.length>0">
-                <canvas #topCanvas id="topProductsChart"></canvas>
+              <!-- keep canvas in DOM always, hide when empty so ViewChild is available reliably -->
+              <div class="chart-wrap">
+                <canvas #topCanvas id="topProductsChart" [hidden]="topProducts.length === 0"></canvas>
               </div>
 
               <ul *ngIf="topProducts.length>0 && !showChart" class="list-unstyled mt-2">
@@ -82,8 +83,8 @@ interface DashboardStats {
 
     </div>
   `,
-  styles: [`
-    .stats-row { align-items: stretch; }
+  styles: [
+    `.stats-row { align-items: stretch; }
     .stat-card { flex: 1 1 220px; min-width: 200px; max-width: 360px; }
     .stat-card .stat-icon mat-icon { font-size: 36px; color: var(--primary-color); }
     .stat-value { font-size: 1.6rem; font-weight: 600; }
@@ -98,7 +99,7 @@ interface DashboardStats {
     }
   `]
 })
-export class AdminDashboardComponent {
+export class AdminDashboardComponent implements AfterViewInit {
   stats: DashboardStats = { totalUsers: 0, totalOrders: 0, totalSales: 0 };
   topProducts: TopProductDto[] = [];
   loading = true;
@@ -111,11 +112,19 @@ export class AdminDashboardComponent {
     this.load();
   }
 
+  ngAfterViewInit(): void {
+    // attempt a render if data already present after view init
+    if (this.topProducts && this.topProducts.length > 0) {
+      // small delay to ensure canvas is painted
+      setTimeout(() => void this.renderChart(), 0);
+    }
+  }
+
   async load() {
     this.loading = true;
     this.svc.getStats().subscribe({ next: (s) => {
         this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; /* allow view to update */ this.cd.detectChanges(); await new Promise(r => setTimeout(r, 0)); await this.renderChart(); this.loading = false; }, error: () => this.loading = false });
+        this.svc.getTopProducts().subscribe({ next: async (t) => { this.topProducts = t || []; /* allow view to update */ this.cd.detectChanges(); await new Promise(r => setTimeout(r, 50)); await this.renderChart(); this.loading = false; }, error: () => this.loading = false });
       }, error: () => { this.loading = false; } });
   }
 
