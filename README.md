@@ -1,345 +1,116 @@
-# Readify ??
+# Readify — Run Locally (no hosting)
 
-Readify is a full-stack bookstore management application built with **ASP.NET Core (.NET 8)** for the backend and **Angular 17** for the frontend. This repository contains a local, cost-free simulation mode where emails are logged to the database and the application runs fully locally.
+This repository contains the Readify sample app (ASP.NET Core backend + Angular frontend). The project is intentionally *not* published to GitHub Pages or any hosted environment by default. The instructions below show how to run everything locally for development and testing.
 
-## ?? Features
-
-### Authentication & Security
-- JWT authentication with refresh tokens
-- Role-based access control (Admin / User)
-- Password reset flow with one-time tokens
-- Secure password hashing with BCrypt
-- Token revocation support
-
-### Book Catalog
-- Advanced search and filtering (title, author, category, price range)
-- Price range slider with dual-thumb controls
-- Multiple sort options (title, price, date)
-- Pagination with condensed page numbers
-- Category-based browsing
-- Real-time filter chips with remove buttons
-- Lazy-loaded images with placeholders
-- Stock availability indicators
-
-### Admin Features
-- **Dashboard** with statistics:
-  - Total products, users, categories
-  - Recent activity tracking
-- Product management (CRUD operations)
-- Image upload with validation
-- Category management
-- Audit logging for all actions
-
-### User Features
-- Profile management (view/edit name and email)
-- Password change with validation
-- Order history (framework ready)
-- Personalized experience
-
-### UI/UX Enhancements
-- Material Design theme with custom color palette
-- Loading skeletons for better perceived performance
-- Responsive design (mobile-first)
-- Accessibility improvements (ARIA labels, keyboard navigation)
-- Empty states with friendly messages
-- Toast notifications for user actions
-- Password visibility toggles
-- Inline form validation
-- Centralized `localDate` pipe for date formatting in the frontend (default timezone configured via `src/environments/environment.ts` - `defaultTimezone: 'Asia/Colombo'`).
-
-### Technical Features
-- Response caching (60s for catalog endpoints)
-- Response compression (gzip/brotli)
-- Email subsystem (logged to DB for simulation, SMTP-ready)
-- Comprehensive audit logging
-- Image validation and optimization
-- Error handling middleware
-- xUnit unit/integration tests
-- Docker support with multi-stage builds
-- CI/CD with GitHub Actions
-
-## ?? Run Locally
-
-### Prerequisites
+## Prerequisites
 - .NET 8 SDK
-- Node.js 20+
-- SQL Server LocalDB or SQL Server
+- Node.js 20+ and npm
+- SQL Server LocalDB or a running SQL Server instance (or Docker if you prefer)
+- Optional: `dotnet-ef` tool (for EF migrations)
 
-### Backend Setup
+## Backend (API) — Run locally
+1. Open a terminal at the repository root.
+2. Update configuration (optional): edit `appsettings.Development.json` or `appsettings.json` to set your connection string. Example LocalDB connection:
 
-1. **Navigate to the backend directory:**
-   ```bash
-   cd Readify
-   ```
-
-2. **Update connection string** in `appsettings.json` if necessary:
    ```json
    "ConnectionStrings": {
      "DefaultConnection": "Server=(localdb)\\MSSQLLocalDB;Database=ReadifyDb;Trusted_Connection=True"
    }
    ```
 
-3. **Install EF tool (if needed):**
+3. (Optional) Install EF CLI if you plan to run migrations manually:
+
    ```bash
    dotnet tool install --global dotnet-ef --version 8.*
    ```
 
-4. **Apply migrations or let auto-seed:**
+4. Apply migrations (creates or updates the DB schema):
+
    ```bash
-   dotnet ef database update --project Readify --context AppDbContext
-   # OR just run the app and it will create the database
+   cd Readify
+   dotnet ef database update
    ```
 
-5. **Run the API:**
+   The app also runs `DbInitializer` on startup which will seed demo data if the DB is empty.
+
+5. Run the backend API:
+
    ```bash
+   cd Readify
    dotnet run
    ```
-   API will be available at `http://localhost:5005`
 
-### Frontend Setup
+   The API listens on the URLs shown in the console (default: `http://localhost:5005`).
 
-1. **Navigate to frontend directory:**
+6. Useful endpoints
+   - Swagger UI (development): `http://localhost:5005/swagger`
+   - Test helper (development only): `POST /api/test/reset` will reset DB and re-run seeding.
+
+## Frontend (Angular) — Run locally
+1. Install dependencies and start dev server:
+
    ```bash
    cd readify-frontend
-   ```
-
-2. **Install dependencies:**
-   ```bash
    npm ci
-   ```
-
-3. **Run dev server:**
-   ```bash
    npm start
    ```
-   App will open at `http://localhost:4200`
 
-The frontend dev server proxies API requests to `http://localhost:5005` via `proxy.conf.json`.
+   The frontend dev server runs at `http://localhost:4200` and proxies API requests to the backend (see `proxy.conf.json`).
 
-## ?? Demo Accounts (Auto-Seeded)
+2. If you need to change the API endpoint the frontend calls, update `readify-frontend/src/environments/environment.ts` (or set a replacement during build).
 
-| Role  | Email             | Password            |
-|-------|-------------------|---------------------|
-| Admin | admin@demo.com    | Readify#Demo123!    |
-| User  | user@demo.com     | Readify#Demo123!    |
+3. To run frontend and backend at the same time (single command), the project includes a `dev` script that runs both processes concurrently:
 
-## ?? Testing
+   ```bash
+   cd readify-frontend
+   npm run dev
+   ```
 
-### Backend Tests
-```bash
-# Run all tests
-dotnet test
+   This runs the backend and the Angular dev server together.
 
-# Run with coverage
-dotnet test --collect:"XPlat Code Coverage"
-```
+## Running Tests
+- Backend unit/integration tests (xUnit):
 
-## ?? Docker
+  ```bash
+  cd Readify.Tests
+  dotnet test
+  ```
 
-### Build Images
+  To collect coverage locally:
 
-**Backend:**
-```bash
-docker build -f Readify/Dockerfile -t readify-backend:latest .
-```
+  ```bash
+  dotnet test --collect:"XPlat Code Coverage"
+  ```
 
-**Frontend:**
-```bash
-docker build -f readify-frontend/Dockerfile -t readify-frontend:latest .
-```
+- Frontend unit tests (Karma/Jasmine):
 
-### Run with Docker Compose
-```bash
-# Coming soon - docker-compose.yml
-```
+  ```bash
+  cd readify-frontend
+  npm test
+  ```
 
-## ?? Architecture
+## Database and Seeding
+- `DbInitializer` seeds demo users and products during startup when running in Development mode.
+- Use `POST /api/test/reset` (only enabled in Development environment) to force a DB reset and reseed — useful for running tests from a clean state.
 
-### Backend Stack
-- **Framework:** ASP.NET Core 8.0 Web API
-- **ORM:** Entity Framework Core 8
-- **Database:** SQL Server
-- **Authentication:** JWT Bearer tokens
-- **Validation:** FluentValidation & Data Annotations
-- **Testing:** xUnit, WebApplicationFactory
-- **Documentation:** Swagger/OpenAPI
+## Common Troubleshooting
+- SQL Server not accessible: confirm `DefaultConnection` is correct and SQL Server or LocalDB is running.
+- EF migrations mismatch: if `dotnet ef database update` reports pending changes, run `dotnet ef migrations add <Name>` then update, or revert model changes.
+- Port conflicts: backend default port may differ; check `dotnet run` output and adjust `environment.apiUrl` in the frontend if needed.
 
-### Frontend Stack
-- **Framework:** Angular 17 (standalone components)
-- **UI Library:** Angular Material + Bootstrap 5
-- **State Management:** RxJS Observables
-- **HTTP Client:** Angular HttpClient with interceptors
-- **Routing:** Angular Router with lazy loading
-- **Testing:** Unit tests (Karma/Jasmine)
-- **Build:** Angular CLI with esbuild
+## Notes about Deployment
+- GitHub Pages serves only static sites. The ASP.NET Core backend cannot be hosted on GitHub Pages.
+- This repository previously had CI workflows for testing. No automatic publishing to Pages or any host is configured by default in this repo.
+- If you decide later to publish the frontend only, add a GitHub Actions workflow to build the Angular app and publish the `dist` directory to a `gh-pages` branch.
 
-### Key Design Patterns
-- Repository pattern (via DbContext)
-- Dependency injection
-- Middleware pipeline
-- JWT refresh token rotation
-- Audit logging interceptor
-- Clean separation of concerns (Controllers ? Services ? Data)
-
-## ?? Configuration
-
-### Backend (appsettings.json)
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=(localdb)\\MSSQLLocalDB;Database=ReadifyDb;..."
-  },
-  "Jwt": {
-    "Key": "your-secret-key-min-32-characters",
-    "Issuer": "Readify",
-    "Audience": "ReadifyUsers"
-  },
-  "Smtp": {
-    "Enabled": false,
-    "Host": "smtp.gmail.com",
-    "Port": 587,
-    "Username": "",
-    "Password": "",
-    "From": "",
-    "FromDisplayName": "Readify"
-  },
-  "Storage": {
-    "RootPath": "wwwroot",
-    "ImagesPath": "images",
-    "MaxImageSizeBytes": 2097152
-  }
-}
-```
-
-### Frontend (environment.ts)
-
-```typescript
-export const environment = {
-  apiUrl: 'http://localhost:5005/api'
-};
-```
-
-## ?? Phase-by-Phase Development
-
-### Phase 1 - MVP
-- Basic CRUD for books and categories
-- User authentication (register/login)
-- Admin product management
-- Simple catalog listing
-
-### Phase 2 - Security & Robustness
-- JWT refresh tokens
-- Role-based authorization
-- Password reset flow
-- Error handling middleware
-- Input validation
-
-### Phase 3 - UX & Features
-- Advanced filtering and search
-- Image upload with validation
-- Profile management
-- Pagination and sorting
-- Responsive UI
-
-### Phase 4 - Production Readiness
-- Email notifications (SMTP-ready, logging mode)
-- Response caching and compression
-- Audit logging expansion
-- Unit and E2E tests
-- Docker support
-- CI/CD pipeline
-
-### Phase 5 - Polish & Optimization
-- Material Design implementation
-- Loading skeletons
-- Price range slider
-- Admin dashboard
-- Enhanced forms with validation
-- Accessibility improvements
-
-## ?? Project Structure
-
-```
-Readify/
-??? Readify/                    # Backend API
-?   ??? Controllers/           # API endpoints
-?   ??? Services/              # Business logic
-?   ??? Models/                # Domain entities
-?   ??? DTOs/                  # Data transfer objects
-?   ??? Data/                  # DbContext & migrations
-?   ??? Helpers/               # JWT, mapping utilities
-?   ??? Middleware/            # Error handling
-?   ??? Program.cs             # App configuration
-??? Readify.Tests/             # Backend tests
-??? readify-frontend/          # Angular app
-?   ??? src/app/
-?   ?   ??? components/       # Reusable UI components
-?   ?   ??? pages/            # Route components
-?   ?   ??? services/         # HTTP & business services
-?   ?   ??? guards/           # Route guards
-?   ?   ??? interceptors/     # HTTP interceptors
-?   ??? cypress/              # E2E tests
-??? .github/workflows/         # CI/CD
-??? README.md
-```
-
-## ?? Deployment
-
-### CI/CD Pipeline (GitHub Actions)
-- Automated builds on push/PR
-- Runs backend tests
-- Builds & pushes Docker images to Docker Hub
-
-### Environment Variables (Secrets)
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
-- Database connection strings
-- JWT secret keys
-- SMTP credentials (if enabled)
-
-## ?? Security Best Practices
-
-? Passwords hashed with BCrypt  
-? JWT tokens with expiration  
-? Refresh token rotation  
-? SQL injection prevention (EF parameterized queries)  
-? XSS protection (Angular sanitization)  
-? CORS policy configured  
-? HTTPS enforcement ready  
-? Input validation on both client and server  
-? Role-based authorization  
-? Audit logging for sensitive actions  
-
-## ?? Performance Optimizations
-
-- Response caching (catalog endpoints)
-- Response compression (gzip/brotli)
-- Lazy loading routes (Angular)
-- Image lazy loading
-- Code splitting (Angular chunks)
-- Database indexes on frequently queried fields
-- Debounced search/filter inputs
-
-## ?? Browser Support
-
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-
-## ?? License
-
-This project is for educational/portfolio purposes.
-
-## ?? Contributing
-
-This is a personal portfolio project, but feedback and suggestions are welcome!
-
-## ?? Contact
-
-For questions or feedback, please open an issue on GitHub.
+## Quick Start Summary
+1. Ensure prerequisites are installed.
+2. Configure connection string (if necessary).
+3. From `Readify/`, run migrations then `dotnet run`.
+4. From `readify-frontend/`, run `npm ci` and `npm start` (or `npm run dev` for both).
+5. Run tests with `dotnet test` and `npm test` as needed.
 
 ---
-
-**Built with ?? using ASP.NET Core and Angular**
+If you want, I can also:
+- Add a short shell/batch script to start both backend and frontend with one command.
+- Remove any CI workflows that attempt to deploy the app (CI test workflow remains useful).
