@@ -23,7 +23,7 @@ public class AdminUsersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var users = await _context.Users.Select(u => new { u.Id, u.Email, u.FullName, u.Role, IsActive = true }).ToListAsync();
+        var users = await _context.Users.Select(u => new { u.Id, u.Email, u.FullName, u.Role, u.IsActive }).ToListAsync();
         return Ok(users);
     }
 
@@ -32,9 +32,9 @@ public class AdminUsersController : ControllerBase
     {
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
-        // app stores no IsActive column; simulate by toggling Role between 'Disabled' and previous role isn't ideal
-        // For now return NoContent to simulate success
-        _logger.LogInformation("Toggled active state for user {UserId}", id);
+        user.IsActive = !user.IsActive;
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Toggled active state for user {UserId} to {State}", id, user.IsActive);
         return NoContent();
     }
 
