@@ -13,11 +13,13 @@ public class AdminOrdersController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ILogger<AdminOrdersController> _logger;
+    private readonly IEmailService _email;
 
-    public AdminOrdersController(AppDbContext context, ILogger<AdminOrdersController> logger)
+    public AdminOrdersController(AppDbContext context, ILogger<AdminOrdersController> logger, IEmailService email)
     {
         _context = context;
         _logger = logger;
+        _email = email;
     }
 
     // GET api/admin/orders
@@ -112,7 +114,20 @@ public class AdminOrdersController : ControllerBase
             await _context.SaveChangesAsync();
             _logger.LogInformation("Updated status for order {OrderId} by admin", id);
 
-            // Optionally send email on certain transitions (not implemented here)
+            // send optional email on status change
+            try
+            {
+                var user = await _context.Users.FindAsync(order.UserId);
+                var emailTo = user?.Email ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(emailTo))
+                {
+                    _ = _email.SendTemplateAsync(emailTo, "OrderStatusChanged", new { OrderId = order.Id, NewStatus = order.OrderStatus });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send order status email for order {OrderId}", id);
+            }
 
             return Ok(order);
         }
