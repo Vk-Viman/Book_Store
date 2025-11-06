@@ -20,14 +20,39 @@ public class AdminUsersController : ControllerBase
         _logger = logger;
     }
 
-    // GET api/admin/users?page=1&pageSize=20
+    // GET api/admin/users?page=1&pageSize=20&q=term&sortBy=email&sortDir=asc
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? q = null, [FromQuery] string? sortBy = null, [FromQuery] string? sortDir = null)
     {
         if (page <= 0) page = 1;
         if (pageSize <= 0) pageSize = 20;
 
-        var query = _context.Users.AsNoTracking().OrderBy(u => u.Id);
+        var query = _context.Users.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var tq = q.Trim();
+            query = query.Where(u => u.Email.Contains(tq) || u.FullName.Contains(tq) || u.Role.Contains(tq));
+        }
+
+        // Sorting
+        var dirDesc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(sortBy))
+        {
+            switch (sortBy.ToLowerInvariant())
+            {
+                case "email": query = dirDesc ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email); break;
+                case "name": query = dirDesc ? query.OrderByDescending(u => u.FullName) : query.OrderBy(u => u.FullName); break;
+                case "role": query = dirDesc ? query.OrderByDescending(u => u.Role) : query.OrderBy(u => u.Role); break;
+                case "createdat": query = dirDesc ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt); break;
+                default: query = query.OrderBy(u => u.Id); break;
+            }
+        }
+        else
+        {
+            query = query.OrderBy(u => u.Id);
+        }
+
         var total = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize)
             .Select(u => new { u.Id, u.Email, u.FullName, u.Role, u.IsActive })

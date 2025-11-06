@@ -1,0 +1,44 @@
+name: .NET Tests & Coverage
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore
+      run: dotnet restore Readify/Readify.sln
+
+    - name: Build
+      run: dotnet build Readify/Readify.sln --configuration Release --no-restore
+
+    - name: Run tests with coverage
+      run: |
+        dotnet test Readify/Readify.sln --configuration Release --no-build --collect:"XPlat Code Coverage" /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+
+    - name: Publish coverage report
+      uses: dorny/test-reporter@v1
+      with:
+        name: Coverage Report
+        path: "**/coverage.opencover.xml"
+        reporter: 'Cobertura'
+        fail-on-error: false
+
+    - name: Upload coverage HTML
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-html
+        path: TestResults/**/*.coverage.opencover.xml
