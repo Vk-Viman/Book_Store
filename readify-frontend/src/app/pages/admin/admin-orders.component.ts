@@ -7,19 +7,28 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatPaginatorModule } from '@angular/material/paginator';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog.component';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-admin-orders',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatButtonModule, MatSelectModule, MatIconModule, MatCardModule, MatInputModule, MatPaginatorModule],
+  imports: [CommonModule, MatTableModule, MatButtonModule, MatSelectModule, MatIconModule, MatCardModule, MatInputModule, MatFormFieldModule, MatPaginatorModule, FormsModule, RouterLink, ConfirmDialogComponent],
   template: `
     <div class="container mt-4">
       <mat-card>
         <mat-card-title>Orders</mat-card-title>
         <mat-card-content>
           <div class="d-flex gap-2 mb-3">
-            <mat-input placeholder="Search" [(ngModel)]="q" (keyup.enter)="load()"></mat-input>
+            <mat-form-field appearance="outline" class="flex-grow-1">
+              <mat-label>Search</mat-label>
+              <input matInput placeholder="Search" [(ngModel)]="q" (keyup.enter)="load()" />
+            </mat-form-field>
             <mat-select [(value)]="filter" (selectionChange)="load()">
               <mat-option value="">All</mat-option>
               <mat-option value="Processing">Processing</mat-option>
@@ -85,7 +94,7 @@ export class AdminOrdersComponent {
   pageIndex = 0;
   total = 0;
 
-  constructor(private http: HttpClient) { this.load(); }
+  constructor(private http: HttpClient, private dialog: MatDialog, private notify: NotificationService) { this.load(); }
 
   load() {
     const page = this.pageIndex + 1;
@@ -97,11 +106,14 @@ export class AdminOrdersComponent {
   onPage(ev: any) { this.pageIndex = ev.pageIndex; this.pageSize = ev.pageSize; this.load(); }
 
   confirmSetStatus(id: number, status: string) {
-    if (!confirm(`Set order ${id} status to ${status}?`)) return;
-    this.setStatus(id, status);
+    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Update Order Status', message: `Set order ${id} status to ${status}?` } });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.setStatus(id, status);
+    });
   }
 
   setStatus(id: number, status: string) {
-    this.http.put(`/api/admin/orders/update-status/${id}`, { orderStatus: status }).subscribe({ next: () => this.load(), error: () => alert('Failed to update status') });
+    this.http.put(`/api/admin/orders/update-status/${id}`, { orderStatus: status }).subscribe({ next: () => { this.notify.success('Order status updated'); this.load(); }, error: () => this.notify.error('Failed to update status') });
   }
 }

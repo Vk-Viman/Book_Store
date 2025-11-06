@@ -169,6 +169,17 @@ export class BookListComponent {
     return this.categories.find(c => c.id === id)?.name || '';
   }
 
+  onSliderChange(value: number, which: 'min' | 'max') {
+    if (which === 'min') {
+      this.minPrice = Math.min(value, this.maxPrice - 1);
+    } else {
+      this.maxPrice = Math.max(value, this.minPrice + 1);
+    }
+
+    clearTimeout(this.priceDebounce);
+    this.priceDebounce = setTimeout(() => this.applyFilters(), 500);
+  }
+
   onRangeInput(event: Event, which: 'min' | 'max') {
     const input = event.target as HTMLInputElement;
     const val = Number(input.value);

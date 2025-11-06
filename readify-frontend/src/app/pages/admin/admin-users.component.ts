@@ -6,11 +6,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog } from '@angular/material/dialog';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog.component';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatButtonModule, MatCardModule, MatPaginatorModule, MatChipsModule],
+  imports: [CommonModule, MatTableModule, MatButtonModule, MatCardModule, MatPaginatorModule, MatChipsModule, ConfirmDialogComponent],
   template: `
     <div class="container mt-4">
       <mat-card>
@@ -66,7 +69,7 @@ export class AdminUsersComponent {
   pageIndex = 0;
   total = 0;
 
-  constructor(private http: HttpClient) { this.load(); }
+  constructor(private http: HttpClient, private dialog: MatDialog, private notify: NotificationService) { this.load(); }
 
   load() {
     const page = this.pageIndex + 1;
@@ -76,10 +79,18 @@ export class AdminUsersComponent {
   onPage(ev: any) { this.pageIndex = ev.pageIndex; this.pageSize = ev.pageSize; this.load(); }
 
   toggleActive(u: any) {
-    this.http.put(`/api/admin/users/${u.id}/toggle-active`, {}).subscribe({ next: () => this.load(), error: (err) => alert(err?.error?.message || 'Failed') });
+    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: u.isActive ? 'Deactivate User' : 'Activate User', message: `Are you sure you want to ${u.isActive ? 'deactivate' : 'activate'} ${u.fullName}?` } });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.http.put(`/api/admin/users/${u.id}/toggle-active`, {}).subscribe({ next: () => { this.notify.success('User updated'); this.load(); }, error: (err) => this.notify.error(err?.error?.message || 'Failed') });
+    });
   }
 
   promote(u: any) {
-    this.http.put(`/api/admin/users/${u.id}/promote`, {}).subscribe({ next: () => this.load(), error: (err) => alert(err?.error?.message || 'Failed') });
+    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Promote User', message: `Promote ${u.fullName} to admin?` } });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.http.put(`/api/admin/users/${u.id}/promote`, {}).subscribe({ next: () => { this.notify.success('User promoted'); this.load(); }, error: (err) => this.notify.error(err?.error?.message || 'Failed') });
+    });
   }
 }

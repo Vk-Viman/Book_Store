@@ -8,11 +8,13 @@ import { RouterModule, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { NotificationService } from '../../services/notification.service';
 import { LocalDatePipe } from '../../pipes/local-date.pipe';
+import { MatDialog } from '@angular/material/dialog';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog.component';
 
 @Component({
   selector: 'app-admin-products',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatTableModule, MatIconModule, RouterModule, MatButtonModule, LocalDatePipe],
+  imports: [CommonModule, MatCardModule, MatTableModule, MatIconModule, RouterModule, MatButtonModule, LocalDatePipe, ConfirmDialogComponent],
   template: `
   <div class="container mt-4">
     <mat-card>
@@ -65,7 +67,7 @@ export class AdminProductListComponent {
   loading = false;
   deleting = new Set<number>();
 
-  constructor(private product: ProductService, private router: Router, private notify: NotificationService) { this.load(); }
+  constructor(private product: ProductService, private router: Router, private notify: NotificationService, private dialog: MatDialog) { this.load(); }
 
   load() { this.loading = true; this.product.getProducts().subscribe({ next: (res: any) => { this.products = res.items || []; this.loading = false; }, error: (_err: any) => { this.loading = false; } }); }
 
@@ -78,28 +80,28 @@ export class AdminProductListComponent {
   }
 
   deleteProduct(id: number) {
-    if (!confirm('Delete this product? This action cannot be undone.')) return;
+    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete Product', message: 'Delete this product? This action cannot be undone.' } });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
 
-    const idx = this.products.findIndex(p => p.id === id);
-    const backup = idx >= 0 ? this.products[idx] : null;
+      const idx = this.products.findIndex(p => p.id === id);
+      const backup = idx >= 0 ? this.products[idx] : null;
 
-    // optimistic remove
-    if (idx >= 0) this.products.splice(idx, 1);
-    this.deleting.add(id);
+      if (idx >= 0) this.products.splice(idx, 1);
+      this.deleting.add(id);
 
-    this.product.deleteProduct(id).subscribe({
-      next: (_res: any) => {
-        this.deleting.delete(id);
-        this.notify.success('Product deleted');
-        // optionally refresh from server to ensure consistency
-        this.load();
-      },
-      error: (err: any) => {
-        this.deleting.delete(id);
-        // restore locally if deletion failed
-        if (backup) this.products.splice(idx, 0, backup);
-        this.notify.error(err?.error?.message || 'Failed to delete product');
-      }
+      this.product.deleteProduct(id).subscribe({
+        next: (_res: any) => {
+          this.deleting.delete(id);
+          this.notify.success('Product deleted');
+          this.load();
+        },
+        error: (err: any) => {
+          this.deleting.delete(id);
+          if (backup) this.products.splice(idx, 0, backup);
+          this.notify.error(err?.error?.message || 'Failed to delete product');
+        }
+      });
     });
   }
 }

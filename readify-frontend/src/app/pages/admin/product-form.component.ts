@@ -7,11 +7,15 @@ import { FormsModule } from '@angular/forms';
 import { ProductService } from '../../services/product.service';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from '../../services/notification.service';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
+import { ValidationSummaryComponent } from '../../components/validation-summary.component';
 
 @Component({
   selector: 'app-admin-product-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, ValidationSummaryComponent],
   template: `
   <div class="container mt-4">
     <h3>{{ isNew ? 'Create' : 'Edit' }} Product</h3>
@@ -29,10 +33,14 @@ import { NotificationService } from '../../services/notification.service';
     </div>
 
     <form [formGroup]="form" (ngSubmit)="save()">
-      <div class="mb-3">
-        <label>Title</label>
-        <input class="form-control" formControlName="title" />
-      </div>
+      <app-validation-summary [errors]="errors"></app-validation-summary>
+
+      <mat-form-field appearance="outline" class="w-100 mb-3">
+        <mat-label>Title</mat-label>
+        <input matInput formControlName="title">
+        <mat-error *ngIf="form.get('title')?.hasError('required')">Title is required</mat-error>
+      </mat-form-field>
+
       <div class="mb-3">
         <label>Authors</label>
         <input class="form-control" formControlName="authors" />
@@ -73,7 +81,7 @@ import { NotificationService } from '../../services/notification.service';
         <input type="file" class="form-control" (change)="onFileSelected($event)" accept="image/*" />
       </div>
 
-      <button class="btn btn-primary" [disabled]="form.invalid || saving || validating">{{ saving ? 'Saving...' : 'Save' }}</button>
+      <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving || validating">{{ saving ? 'Saving...' : 'Save' }}</button>
     </form>
   </div>
 
