@@ -26,8 +26,27 @@ jobs:
       run: dotnet restore "Readify.sln"
 
     - name: Build
-      run: dotnet build "Readify.sln" --configuration Release --no-restore
+      run: dot net build "Readify.sln" --configuration Release --no-restore
 
     - name: Run unit tests
       run: |
         dotnet test Readify.UnitTests/Readify.UnitTests.csproj --no-build --verbosity normal
+
+# Note: If you later enable SQL Server service in CI for integration tests,
+# prefer using a repository secret for the SA password (MSSQL_SA_PASSWORD).
+# Example service config when used:
+# services:
+#   sqlserver:
+#     image: mcr.microsoft.com/mssql/server:2019-latest
+#     env:
+#       ACCEPT_EULA: 'Y'
+#       SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
+#       MSSQL_PID: 'Express'
+#     options: >-
+#       --memory=3g
+#       --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"${{ secrets.MSSQL_SA_PASSWORD }}\" -Q \"SELECT 1\""
+#       --health-interval 10s
+#       --health-timeout 5s
+#       --health-retries 10
+# And environment connection string example:
+# ConnectionStrings__DefaultConnection: "Server=localhost,1433;Database=ReadifyDb;User Id=sa;Password=${{ secrets.MSSQL_SA_PASSWORD }};TrustServerCertificate=True"
