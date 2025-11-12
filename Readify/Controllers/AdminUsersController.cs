@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Readify.Data;
 using Readify.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace Readify.Controllers;
 
@@ -55,10 +56,88 @@ public class AdminUsersController : ControllerBase
 
         var total = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(u => new { u.Id, u.Email, u.FullName, u.Role, u.IsActive })
+            .Select(u => new { u.Id, u.Email, u.FullName, u.Role, u.IsActive, u.CreatedAt })
             .ToListAsync();
 
         return Ok(new { items, total, page, pageSize });
+    }
+
+    // GET api/admin/users/{id}
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound();
+        return Ok(new { user.Id, user.Email, user.FullName, user.Role, user.IsActive, user.CreatedAt });
+    }
+
+    public class UpdateUserDto
+    {
+        [StringLength(200, MinimumLength = 2)]
+        public string? FullName { get; set; }
+
+        [EmailAddress]
+        public string? Email { get; set; }
+
+        [RegularExpression("^(Admin|User)$", ErrorMessage = "Role must be 'Admin' or 'User'.")]
+        public string? Role { get; set; }
+
+        public bool? IsActive { get; set; }
+    }
+
+    // PUT api/admin/users/{id}
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return NotFound();
+
+        // If changing IsActive from true->false for an admin, ensure another active admin remains
+        if (dto.IsActive.HasValue && user.IsActive && !dto.IsActive.Value && string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.Role == "Admin");
+            if (!otherActiveAdmins)
+            {
+                return BadRequest(new { message = "Cannot deactivate the last active admin." });
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.FullName)) user.FullName = dto.FullName.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Role)) user.Role = dto.Role.Trim();
+        if (dto.IsActive.HasValue) user.IsActive = dto.IsActive.Value;
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Admin updated user {UserId}", id);
+        return NoContent();
+    }
+
+    // DELETE api/admin/users/{id} -> soft delete
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return NotFound();
+
+        // Prevent deleting last admin
+        if (user.IsActive && string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.Role == "Admin");
+            if (!otherActiveAdmins)
+            {
+                return BadRequest(new { message = "Cannot deactivate the last active admin." });
+            }
+        }
+
+        user.IsActive = false;
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Soft-deleted (deactivated) user {UserId}", id);
+        return NoContent();
     }
 
     [HttpPut("{id}/toggle-active")]

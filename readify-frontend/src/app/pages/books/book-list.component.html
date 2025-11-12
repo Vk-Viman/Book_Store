@@ -10,9 +10,11 @@
         <div class="mb-2">
           <label class="form-label">Price range</label>
           <div class="range-slider-wrapper">
-            <input class="range-input" type="range" min="0" max="100" [value]="minPrice" (input)="onRangeInput($event,'min')" aria-label="Minimum price" />
-            <input class="range-input" type="range" min="0" max="100" [value]="maxPrice" (input)="onRangeInput($event,'max')" aria-label="Maximum price" />
-            <div class="range-labels"><span class="range-label-min">${{priceMin}}</span><span class="range-label-max">${{priceMax}}</span></div>
+            <div class="range-slider">
+              <input class="range-input" type="range" min="0" max="100" [(ngModel)]="minPrice" (ngModelChange)="onSliderChange($event,'min')" aria-label="Minimum price" />
+              <input class="range-input" type="range" min="0" max="100" [(ngModel)]="maxPrice" (ngModelChange)="onSliderChange($event,'max')" aria-label="Maximum price" />
+              <div class="range-labels"><span class="range-label-min">{{ priceMin | currency }}</span><span class="range-label-max">{{ priceMax | currency }}</span></div>
+            </div>
           </div>
         </div>
         <div *ngIf="hasActiveFilters()" class="active-filters">

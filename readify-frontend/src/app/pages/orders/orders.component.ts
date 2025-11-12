@@ -35,7 +35,7 @@ import { NotificationService } from '../../services/notification.service';
         <div *ngIf="!loading && orders.length===0" class="text-center py-4" role="status">You have no orders yet. Place an order to see it here.</div>
         <mat-list *ngIf="!loading && orders.length>0">
           <mat-list-item *ngFor="let o of orders">
-            <a [routerLink]="['/orders', o.id]" class="order-link" aria-label="Open order {{o.id}} details">
+            <a [routerLink]="['/orders', o.id]" class="order-link" attr.aria-label="Open order {{o.id}} details">
               <div style="width:100%" class="d-flex justify-content-between align-items-center">
                 <div>
                   <div class="order-title">Order #{{ o.id }}</div>

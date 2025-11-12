@@ -8,12 +8,17 @@ public class Order
     public int UserId { get; set; }
     public DateTime OrderDate { get; set; } = DateTime.UtcNow;
     public decimal TotalAmount { get; set; }
+
+    // legacy field; not used for lifecycle but kept for compatibility
     public string Status { get; set; } = "Pending";
 
-    // New fields for Phase 5: payment and order lifecycle statuses
-    // Use strings for backward compatibility with existing frontend; values: Pending/Paid/Failed and Processing/Shipped/Delivered/Cancelled
+    // Payment and lifecycle statuses
     public string PaymentStatus { get; set; } = "Pending";
-    public string OrderStatus { get; set; } = "Processing";
+    public string OrderStatus { get; set; } = "Pending"; // Pending, Processing, Shipped, Delivered, Cancelled
+
+    // Timestamps for lifecycle
+    public DateTime? UpdatedAt { get; set; }
+    public DateTime? DateDelivered { get; set; }
 
     // store payment transaction id returned by payment provider (optional)
     public string? PaymentTransactionId { get; set; }

@@ -15,12 +15,14 @@ public class AdminOrdersController : ControllerBase
     private readonly AppDbContext _context;
     private readonly ILogger<AdminOrdersController> _logger;
     private readonly IEmailService _email;
+    private readonly IAuditService _audit;
 
-    public AdminOrdersController(AppDbContext context, ILogger<AdminOrdersController> logger, IEmailService email)
+    public AdminOrdersController(AppDbContext context, ILogger<AdminOrdersController> logger, IEmailService email, IAuditService audit)
     {
         _context = context;
         _logger = logger;
         _email = email;
+        _audit = audit;
     }
 
     // GET api/admin/orders
@@ -51,7 +53,7 @@ public class AdminOrdersController : ControllerBase
                 }
                 else
                 {
-                    query = query.Where(o => o.PaymentTransactionId!.Contains(tq) || o.PromoCode!.Contains(tq) || o.OrderStatus.Contains(tq) || o.PaymentStatus.Contains(tq));
+                    query = query.Where(o => (o.PaymentTransactionId ?? string.Empty).Contains(tq) || (o.PromoCode ?? string.Empty).Contains(tq) || (o.OrderStatus ?? string.Empty).Contains(tq) || (o.PaymentStatus ?? string.Empty).Contains(tq));
                 }
             }
 
@@ -129,14 +131,21 @@ public class AdminOrdersController : ControllerBase
             if (order == null) return NotFound(new { message = "Order not found" });
 
             var changed = false;
+            var prevOrderStatus = order.OrderStatus;
             if (!string.IsNullOrWhiteSpace(dto.OrderStatus) && !string.Equals(order.OrderStatus, dto.OrderStatus, StringComparison.OrdinalIgnoreCase))
             {
                 order.OrderStatus = dto.OrderStatus!.Trim();
+                order.UpdatedAt = DateTime.UtcNow; // track update time
+                if (string.Equals(order.OrderStatus, "Delivered", StringComparison.OrdinalIgnoreCase))
+                {
+                    order.DateDelivered = DateTime.UtcNow;
+                }
                 changed = true;
             }
             if (!string.IsNullOrWhiteSpace(dto.PaymentStatus) && !string.Equals(order.PaymentStatus, dto.PaymentStatus, StringComparison.OrdinalIgnoreCase))
             {
                 order.PaymentStatus = dto.PaymentStatus!.Trim();
+                order.UpdatedAt = DateTime.UtcNow;
                 changed = true;
             }
 
@@ -144,6 +153,9 @@ public class AdminOrdersController : ControllerBase
 
             await _context.SaveChangesAsync();
             _logger.LogInformation("Updated status for order {OrderId} by admin", id);
+
+            // audit
+            try { await _audit.WriteAsync("UpdateOrderStatus", nameof(Order), id, $"From={prevOrderStatus} To={order.OrderStatus}"); } catch { }
 
             // send optional email on status change
             try
