@@ -4,6 +4,7 @@ using Readify.Services;
 using Readify.Data;
 using Readify.Models;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace Readify.Controllers
 {
@@ -30,10 +31,20 @@ namespace Readify.Controllers
             return Ok(new { u.Email, u.FullName, u.Role });
         }
 
-        public class UpdateProfileRequest { public string FullName { get; set; } = string.Empty; public string Email { get; set; } = string.Empty; }
+        public class UpdateProfileRequest {
+            [Required]
+            [StringLength(200, MinimumLength = 2)]
+            public string FullName { get; set; } = string.Empty;
+
+            [Required]
+            [EmailAddress]
+            public string Email { get; set; } = string.Empty;
+        }
         [HttpPut("me")]
         public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequest req)
         {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
             var uidStr = User.FindFirst("userId")?.Value; if (!int.TryParse(uidStr, out var uid)) return Unauthorized();
             // capture old values for profile update audit
             var old = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == uid);
