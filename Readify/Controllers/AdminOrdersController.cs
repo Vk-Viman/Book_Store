@@ -185,6 +185,35 @@ public class AdminOrdersController : ControllerBase
                 {
                     return BadRequest(new { message = "Invalid order status" });
                 }
+
+                // Enforce allowed transitions for lifecycle
+                var current = order.OrderStatus; // enum
+                bool allowed = false;
+                switch (parsed)
+                {
+                    case OrderStatus.Processing:
+                        allowed = current == OrderStatus.Pending;
+                        break;
+                    case OrderStatus.Shipped:
+                        allowed = current == OrderStatus.Processing;
+                        break;
+                    case OrderStatus.Delivered:
+                        allowed = current == OrderStatus.Shipped;
+                        break;
+                    case OrderStatus.Cancelled:
+                        allowed = current != OrderStatus.Delivered && current != OrderStatus.Cancelled;
+                        break;
+                    case OrderStatus.Pending:
+                        // Do not allow reverting to Pending
+                        allowed = false;
+                        break;
+                }
+
+                if (!allowed)
+                {
+                    return BadRequest(new { message = $"Invalid status transition from {order.OrderStatusString} to {parsed}" });
+                }
+
                 order.OrderStatus = parsed;
                 order.UpdatedAt = DateTime.UtcNow; // track update time
                 if (parsed == OrderStatus.Delivered)

@@ -8,9 +8,21 @@ import { map } from 'rxjs/operators';
 export class AuthService {
   private apiUrl = `${environment.apiUrl}/auth`;
   private loggedIn$ = new BehaviorSubject<boolean>(!!localStorage.getItem('token'));
-  private role$ = new BehaviorSubject<string | null>(localStorage.getItem('role'));
+  private role$ = new BehaviorSubject<string | null>(null);
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    // Seed role from token if available (preferred) otherwise from localStorage
+    const token = this.getToken();
+    const roleFromToken = this.parseRoleFromToken(token);
+    if (roleFromToken) {
+      this.role$.next(roleFromToken);
+      localStorage.setItem('role', roleFromToken);
+    } else {
+      const stored = localStorage.getItem('role');
+      if (stored) this.role$.next(stored);
+    }
+    this.loggedIn$.next(!!token && !this.isTokenExpired(token));
+  }
 
   register(data: any): Observable<any> {
     return this.http.post(`${this.apiUrl}/register`, data);
@@ -28,10 +40,34 @@ export class AuthService {
     return localStorage.getItem('refresh');
   }
 
+  private parseRoleFromToken(token?: string | null): string | null {
+    const t = token ?? this.getToken();
+    if (!t) return null;
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1]));
+      // common claim keys
+      const keys = ['role', 'roles', 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+      for (const k of keys) {
+        const v = payload[k];
+        if (!v) continue;
+        if (Array.isArray(v)) return v[0];
+        return String(v);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   setSession(token: string, refresh?: string, role?: string) {
     localStorage.setItem('token', token);
     if (refresh) localStorage.setItem('refresh', refresh);
-    if (role) { localStorage.setItem('role', role); this.role$.next(role); }
+    // prefer role param, otherwise parse from token
+    let resolved = role ?? this.parseRoleFromToken(token) ?? null;
+    if (resolved) {
+      localStorage.setItem('role', resolved);
+      this.role$.next(resolved);
+    }
     this.loggedIn$.next(true);
   }
 
@@ -60,7 +96,7 @@ export class AuthService {
 
   isAdmin$() { return this.role$.asObservable().pipe(map(r => r === 'Admin')); }
 
-  isAdmin(): boolean { return this.role$.value === 'Admin' || localStorage.getItem('role') === 'Admin'; }
+  isAdmin(): boolean { return this.role$.value === 'Admin' || this.parseRoleFromToken(this.getToken()) === 'Admin' || localStorage.getItem('role') === 'Admin'; }
 
   refreshToken(): Observable<any> {
     const refresh = this.getRefresh();

@@ -28,7 +28,8 @@ namespace Readify.Controllers
             if (!int.TryParse(uidStr, out var uid)) return Unauthorized();
             var u = await _users.GetByIdAsync(uid);
             if (u == null) return NotFound();
-            return Ok(new { u.Email, u.FullName, u.Role });
+            // expose RoleString for compatibility
+            return Ok(new { u.Email, u.FullName, Role = u.RoleString });
         }
 
         public class UpdateProfileRequest {

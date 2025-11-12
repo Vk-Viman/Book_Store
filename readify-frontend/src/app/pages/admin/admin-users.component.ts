@@ -35,7 +35,7 @@ import { AdminUserEditDialogComponent } from './admin-user-edit-dialog.component
             </ng-container>
             <ng-container matColumnDef="role">
               <th mat-header-cell *matHeaderCellDef>Role</th>
-              <td mat-cell *matCellDef="let u">{{u.role}}</td>
+              <td mat-cell *matCellDef="let u">{{u.role || u.Role || u.roleString}}</td>
             </ng-container>
             <ng-container matColumnDef="active">
               <th mat-header-cell *matHeaderCellDef>Active</th>

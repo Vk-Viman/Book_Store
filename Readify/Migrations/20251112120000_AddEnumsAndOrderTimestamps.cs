@@ -31,7 +31,7 @@ END");
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // no-op down because existing data should be preserved; manual rollback if required
+            // no-op
         }
     }
 }
