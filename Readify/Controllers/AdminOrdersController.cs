@@ -220,6 +220,9 @@ public class AdminOrdersController : ControllerBase
                 {
                     order.DateDelivered = DateTime.UtcNow;
                 }
+
+                // append history
+                _context.OrderHistories.Add(new OrderHistory { OrderId = order.Id, OldStatus = prevOrderStatus, NewStatus = order.OrderStatusString, Timestamp = DateTime.UtcNow });
                 changed = true;
             }
             if (!string.IsNullOrWhiteSpace(dto.PaymentStatus) && !string.Equals(order.PaymentStatus, dto.PaymentStatus, StringComparison.OrdinalIgnoreCase))

@@ -20,6 +20,9 @@ namespace Readify.Data
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<PromoCode> PromoCodes { get; set; }
         public DbSet<ShippingSetting> ShippingSettings { get; set; }
+        public DbSet<Wishlist> Wishlists { get; set; }
+        public DbSet<OrderHistory> OrderHistories { get; set; }
+        public DbSet<Review> Reviews { get; set; }
         // Alias for readability: treat products as books in the app domain
         public DbSet<Product> Books => Products;
 
@@ -112,6 +115,15 @@ namespace Readify.Data
             modelBuilder.Entity<ShippingSetting>()
                 .Property(s => s.FreeShippingThreshold)
                 .HasColumnType("decimal(18,2)");
+
+            // Configure wishlist
+            modelBuilder.ConfigureWishlist();
+
+            modelBuilder.Entity<OrderHistory>()
+                .HasIndex(h => h.OrderId);
+
+            modelBuilder.Entity<Review>()
+                .HasIndex(r => r.ProductId);
         }
     }
 }

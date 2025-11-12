@@ -16,6 +16,7 @@ import { ProductService } from '../../services/product.service';
 import { LoadingSkeletonComponent } from '../../components/loading-skeleton.component';
 import { CartService } from '../../services/cart.service';
 import { NotificationService } from '../../services/notification.service';
+import { WishlistService } from '../../services/wishlist.service';
 
 @Component({
   selector: 'app-book-list',
@@ -48,6 +49,7 @@ import { NotificationService } from '../../services/notification.service';
       height: 100%;
       display: flex;
       flex-direction: column;
+      position: relative;
     }
     .product-card mat-card-content {
       flex: 1;
@@ -75,6 +77,12 @@ import { NotificationService } from '../../services/notification.service';
       background-color: var(--primary-color);
       color: white;
     }
+    .wishlist-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 20;
+    }
   `]
 })
 export class BookListComponent {
@@ -86,14 +94,15 @@ export class BookListComponent {
   totalPages = 1;
   total = 0;
   selectedCategoryId: number | null = null;
-  // Slider values - start with full range
   minPrice: number = 0;
   maxPrice: number = 100;
   sort: string = '';
   loading = false;
   private priceDebounce: any;
 
-  constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router, private cart: CartService, private notify: NotificationService) {
+  wishlist = new Set<number>();
+
+  constructor(private bookService: BookService, private productService: ProductService, private route: ActivatedRoute, private router: Router, private cart: CartService, private notify: NotificationService, private wishlistSvc: WishlistService) {
     this.route.paramMap.subscribe(pm => {
       const cat = pm.get('id');
       this.selectedCategoryId = cat ? Number(cat) : null;
@@ -103,7 +112,6 @@ export class BookListComponent {
     this.route.queryParamMap.subscribe(qp => {
       this.q = qp.get('q') ?? '';
       this.page = Number(qp.get('page') ?? 1);
-      // Reset to defaults, then override only if query params exist
       this.minPrice = 0;
       this.maxPrice = 100;
       if (qp.has('minPrice')) {
@@ -117,6 +125,24 @@ export class BookListComponent {
     });
 
     this.loadCategories();
+    this.loadWishlist();
+  }
+
+  async loadWishlist() {
+    try {
+      const res: any = await this.wishlistSvc.getMyWishlist().toPromise();
+      this.wishlist.clear();
+      (res || []).forEach((i: any) => this.wishlist.add(i.productId));
+    } catch { /* ignore for anonymous users */ }
+  }
+
+  toggleWishlist(p: any, e?: Event) {
+    if (e) e.stopPropagation();
+    if (this.wishlist.has(p.id)) {
+      this.wishlistSvc.removeFromWishlist(p.id).subscribe({ next: () => { this.wishlist.delete(p.id); this.notify.success('Removed from wishlist'); }, error: () => this.notify.error('Failed to remove from wishlist') });
+    } else {
+      this.wishlistSvc.addToWishlist(p.id).subscribe({ next: () => { this.wishlist.add(p.id); this.notify.success('Added to wishlist'); }, error: () => this.notify.error('Failed to add to wishlist') });
+    }
   }
 
   get visiblePages(): number[] {
@@ -124,11 +150,11 @@ export class BookListComponent {
     const half = Math.floor(maxVisible / 2);
     let start = Math.max(1, this.page - half);
     let end = Math.min(this.totalPages, start + maxVisible - 1);
-    
+
     if (end - start + 1 < maxVisible) {
       start = Math.max(1, end - maxVisible + 1);
     }
-    
+
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   }
 
@@ -145,15 +171,7 @@ export class BookListComponent {
   }
 
   get priceChipLabel(): string {
-    return `Price: $${this.priceMin} - $${this.priceMax}`;
-  }
-
-  get minPercent(): number {
-    return this.minPrice;
-  }
-
-  get maxPercent(): number {
-    return this.maxPrice;
+    return `Price: $${this.minPrice} - $${this.maxPrice}`;
   }
 
   onImgError(event: Event) {
@@ -183,16 +201,13 @@ export class BookListComponent {
   onRangeInput(event: Event, which: 'min' | 'max') {
     const input = event.target as HTMLInputElement;
     const val = Number(input.value);
-    
+
     if (which === 'min') {
-      // Ensure min doesn't exceed max
       this.minPrice = Math.min(val, this.maxPrice - 1);
     } else {
-      // Ensure max doesn't go below min
       this.maxPrice = Math.max(val, this.minPrice + 1);
     }
-    
-    // Debounce the filter application
+
     clearTimeout(this.priceDebounce);
     this.priceDebounce = setTimeout(() => this.applyFilters(), 500);
   }
@@ -206,20 +221,19 @@ export class BookListComponent {
   }
 
   applyFilters() {
-    const query: any = { 
-      q: this.q || undefined, 
-      page: 1, 
+    const query: any = {
+      q: this.q || undefined,
+      page: 1,
       sort: this.sort || undefined
     };
-    
-    // Only add price params if they differ from defaults
+
     if (this.minPrice !== 0) {
       query.minPrice = this.minPrice;
     }
     if (this.maxPrice !== 100) {
       query.maxPrice = this.maxPrice;
     }
-    
+
     if (this.selectedCategoryId) {
       this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
     } else {
@@ -255,24 +269,21 @@ export class BookListComponent {
   }
 
   loadCategories() {
-    this.productService.getCategories().subscribe({ 
-      next: (res: any) => { this.categories = res; }, 
-      error: (err) => { console.error('Failed to load categories', err); this.categories = []; } 
-    });
+    this.productService.getCategories().subscribe({ next: (res: any) => { this.categories = res; }, error: (err) => { console.error('Failed to load categories', err); this.categories = []; } });
   }
 
   selectCategory(id: number | null) {
     this.selectedCategoryId = id;
     this.page = 1;
-    const query: any = { 
-      q: this.q || undefined, 
-      page: 1, 
+    const query: any = {
+      q: this.q || undefined,
+      page: 1,
       sort: this.sort || undefined
     };
-    
+
     if (this.minPrice !== 0) query.minPrice = this.minPrice;
     if (this.maxPrice !== 100) query.maxPrice = this.maxPrice;
-    
+
     if (id) {
       this.router.navigate(['/categories', id], { queryParams: query });
     } else {
@@ -283,15 +294,15 @@ export class BookListComponent {
   goto(p: number) {
     if (p < 1 || p > this.totalPages) return;
     this.page = p;
-    const query: any = { 
-      q: this.q || undefined, 
-      page: p, 
+    const query: any = {
+      q: this.q || undefined,
+      page: p,
       sort: this.sort || undefined
     };
-    
+
     if (this.minPrice !== 0) query.minPrice = this.minPrice;
     if (this.maxPrice !== 100) query.maxPrice = this.maxPrice;
-    
+
     if (this.selectedCategoryId) {
       this.router.navigate(['/categories', this.selectedCategoryId], { queryParams: query });
     } else {

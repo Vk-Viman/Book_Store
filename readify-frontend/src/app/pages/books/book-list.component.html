@@ -36,6 +36,9 @@
       <div *ngIf="!loading && products.length>0" class="row g-3">
         <div *ngFor="let p of products" class="col-6 col-md-4">
           <mat-card class="product-card" role="article" tabindex="0" (click)="addToCart(p)">
+            <button mat-icon-button color="warn" class="wishlist-btn" aria-label="Toggle wishlist" (click)="toggleWishlist(p,$event)">
+              <mat-icon>{{ wishlist.has(p.id) ? 'favorite' : 'favorite_border' }}</mat-icon>
+            </button>
             <img [src]="p.imageUrl || 'assets/book-placeholder.svg'" (error)="onImgError($event)" loading="lazy" alt="{{p.title}} cover" class="product-image" />
             <mat-card-content>
               <div class="title">{{ p.title }}</div>
