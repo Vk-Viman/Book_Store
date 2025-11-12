@@ -532,4 +532,28 @@ public class OrdersController : ControllerBase
             return StatusCode(500, new { message = "Failed to load orders" });
         }
     }
+
+    // GET api/orders/{id}/history
+    [HttpGet("{id}/history")]
+    public async Task<IActionResult> GetOrderHistory(int id)
+    {
+        try
+        {
+            var userId = await GetUserIdFromClaimsAsync();
+            if (userId == null) return Unauthorized(new { message = "User not authenticated" });
+
+            var order = await _context.Orders.FindAsync(id);
+            if (order == null) return NotFound(new { message = "Order not found" });
+
+            if (order.UserId != userId.Value && !User.IsInRole("Admin")) return Forbid();
+
+            var history = await _context.OrderHistories.Where(h => h.OrderId == id).OrderBy(h => h.Timestamp).ToListAsync();
+            return Ok(history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetOrderHistory failed");
+            return StatusCode(500, new { message = "Failed to load order history" });
+        }
+    }
 }
