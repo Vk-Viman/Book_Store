@@ -9,11 +9,12 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmDialogComponent } from '../../components/confirm-dialog.component';
 import { NotificationService } from '../../services/notification.service';
+import { AdminUserEditDialogComponent } from './admin-user-edit-dialog.component';
 
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatButtonModule, MatCardModule, MatPaginatorModule, MatChipsModule, ConfirmDialogComponent],
+  imports: [CommonModule, MatTableModule, MatButtonModule, MatCardModule, MatPaginatorModule, MatChipsModule, ConfirmDialogComponent, AdminUserEditDialogComponent],
   template: `
     <div class="container mt-4">
       <mat-card>
@@ -47,6 +48,7 @@ import { NotificationService } from '../../services/notification.service';
               <td mat-cell *matCellDef="let u">
                 <button mat-button color="warn" (click)="toggleActive(u)">{{u.isActive ? 'Deactivate' : 'Activate'}}</button>
                 <button mat-button color="primary" (click)="promote(u)">Promote to Admin</button>
+                <button mat-button (click)="openEdit(u)">Edit</button>
               </td>
             </ng-container>
 
@@ -91,6 +93,14 @@ export class AdminUsersComponent {
     ref.afterClosed().subscribe(confirmed => {
       if (!confirmed) return;
       this.http.put(`/api/admin/users/${u.id}/promote`, {}).subscribe({ next: () => { this.notify.success('User promoted'); this.load(); }, error: (err) => this.notify.error(err?.error?.message || 'Failed') });
+    });
+  }
+
+  openEdit(u: any) {
+    const ref = this.dialog.open(AdminUserEditDialogComponent, { data: { ...u } });
+    ref.afterClosed().subscribe(result => {
+      if (!result) return;
+      this.http.put(`/api/admin/users/${u.id}`, result).subscribe({ next: () => { this.notify.success('User saved'); this.load(); }, error: (err) => this.notify.error(err?.error?.message || 'Failed') });
     });
   }
 }

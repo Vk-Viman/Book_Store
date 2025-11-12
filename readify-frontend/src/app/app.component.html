@@ -37,6 +37,10 @@
           <mat-icon>inventory_2</mat-icon>
           <span>Products</span>
         </a>
+        <a mat-menu-item routerLink="/admin/users">
+          <mat-icon>people</mat-icon>
+          <span>Users</span>
+        </a>
         <a mat-menu-item routerLink="/admin/promos" *ngIf="(isAdmin$ | async)">
           <mat-icon>local_offer</mat-icon>
           <span>Promos</span>
@@ -95,6 +99,10 @@
       <a mat-menu-item routerLink="/orders" *ngIf="(loggedIn$ | async)">
         <mat-icon>receipt_long</mat-icon>
         <span>My Orders</span>
+      </a>
+      <a mat-menu-item routerLink="/admin/users" *ngIf="(isAdmin$ | async)">
+        <mat-icon>people</mat-icon>
+        <span>Users</span>
       </a>
       <div *ngIf="(isAdmin$ | async)">
         <mat-divider></mat-divider>

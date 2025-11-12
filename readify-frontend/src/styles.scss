@@ -266,3 +266,14 @@ img[loading="lazy"] {
   font-weight: 500;
   color: var(--primary-color);
 }
+
+/* Status badges for admin orders */
+.status-badge { padding: 4px 8px; border-radius: 12px; color: white; font-weight: 600; font-size: 0.85rem; }
+.status-pending { background: #ffb300; }
+.status-processing { background: #ff9800; }
+.status-shipped { background: #2196f3; }
+.status-delivered { background: #4caf50; }
+.status-cancelled { background: #f44336; }
+
+/* small improvements */
+.mat-elevation-z8 { overflow: visible; }

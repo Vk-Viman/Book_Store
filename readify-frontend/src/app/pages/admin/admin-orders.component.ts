@@ -57,7 +57,10 @@ import { NotificationService } from '../../services/notification.service';
             </ng-container>
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Status</th>
-              <td mat-cell *matCellDef="let o">{{o.orderStatus}} / {{o.paymentStatus}}</td>
+              <td mat-cell *matCellDef="let o">
+                <span [ngClass]="statusClass(o.orderStatus)" class="status-badge">{{o.orderStatus}}</span>
+                <span class="ms-2 text-muted">{{o.paymentStatus}}</span>
+              </td>
             </ng-container>
             <ng-container matColumnDef="tx">
               <th mat-header-cell *matHeaderCellDef>Payment Tx</th>
@@ -104,6 +107,18 @@ export class AdminOrdersComponent {
   }
 
   onPage(ev: any) { this.pageIndex = ev.pageIndex; this.pageSize = ev.pageSize; this.load(); }
+
+  statusClass(status: string) {
+    if (!status) return 'status-pending';
+    switch (status.toLowerCase()) {
+      case 'pending': return 'status-pending';
+      case 'processing': return 'status-processing';
+      case 'shipped': return 'status-shipped';
+      case 'delivered': return 'status-delivered';
+      case 'cancelled': return 'status-cancelled';
+      default: return 'status-pending';
+    }
+  }
 
   confirmSetStatus(id: number, status: string) {
     const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Update Order Status', message: `Set order ${id} status to ${status}?` } });
