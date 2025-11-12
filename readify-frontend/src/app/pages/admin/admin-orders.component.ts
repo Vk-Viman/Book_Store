@@ -58,8 +58,16 @@ import { NotificationService } from '../../services/notification.service';
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let o">
-                <span [ngClass]="statusClass(o.orderStatus)" class="status-badge">{{o.orderStatus}}</span>
-                <span class="ms-2 text-muted">{{o.paymentStatus}}</span>
+                <mat-form-field appearance="outline">
+                  <mat-select [(value)]="o.orderStatus" (selectionChange)="onStatusChange(o, $event.value)">
+                    <mat-option value="Pending">Pending</mat-option>
+                    <mat-option value="Processing">Processing</mat-option>
+                    <mat-option value="Shipped">Shipped</mat-option>
+                    <mat-option value="Delivered">Delivered</mat-option>
+                    <mat-option value="Cancelled">Cancelled</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <div class="mt-1"><small class="text-muted">Payment: {{o.paymentStatus}}</small></div>
               </td>
             </ng-container>
             <ng-container matColumnDef="tx">
@@ -69,9 +77,6 @@ import { NotificationService } from '../../services/notification.service';
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Actions</th>
               <td mat-cell *matCellDef="let o">
-                <button mat-button color="primary" (click)="confirmSetStatus(o.id, 'Shipped')">Mark Shipped</button>
-                <button mat-button color="accent" (click)="confirmSetStatus(o.id, 'Delivered')">Mark Delivered</button>
-                <button mat-button color="warn" (click)="confirmSetStatus(o.id, 'Cancelled')">Cancel</button>
                 <button mat-icon-button [routerLink]="['/orders', o.id]" title="View"><mat-icon>open_in_new</mat-icon></button>
               </td>
             </ng-container>
@@ -108,27 +113,9 @@ export class AdminOrdersComponent {
 
   onPage(ev: any) { this.pageIndex = ev.pageIndex; this.pageSize = ev.pageSize; this.load(); }
 
-  statusClass(status: string) {
-    if (!status) return 'status-pending';
-    switch (status.toLowerCase()) {
-      case 'pending': return 'status-pending';
-      case 'processing': return 'status-processing';
-      case 'shipped': return 'status-shipped';
-      case 'delivered': return 'status-delivered';
-      case 'cancelled': return 'status-cancelled';
-      default: return 'status-pending';
-    }
-  }
-
-  confirmSetStatus(id: number, status: string) {
-    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Update Order Status', message: `Set order ${id} status to ${status}?` } });
-    ref.afterClosed().subscribe(confirmed => {
-      if (!confirmed) return;
-      this.setStatus(id, status);
-    });
-  }
-
-  setStatus(id: number, status: string) {
-    this.http.put(`/api/admin/orders/update-status/${id}`, { orderStatus: status }).subscribe({ next: () => { this.notify.success('Order status updated'); this.load(); }, error: () => this.notify.error('Failed to update status') });
+  onStatusChange(order: any, newStatus: string) {
+    const prev = order.orderStatus;
+    order.orderStatus = newStatus;
+    this.http.put(`/api/admin/orders/${order.id}/status`, { orderStatus: newStatus }).subscribe({ next: () => { this.notify.success('Order status updated'); this.load(); }, error: () => { order.orderStatus = prev; this.notify.error('Failed to update status'); } });
   }
 }

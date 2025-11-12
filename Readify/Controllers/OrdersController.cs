@@ -238,9 +238,12 @@ public class OrdersController : ControllerBase
                     FreeShipping = freeShipping,
                     // set payment/order status fields
                     PaymentStatus = paymentSucceeded ? "Paid" : "Pending",
-                    OrderStatus = "Processing",
-                    PaymentTransactionId = paymentTxId
                 };
+
+                // set initial order lifecycle status as Processing
+                order.OrderStatus = OrderStatus.Processing;
+                order.OrderStatusString = order.OrderStatus.ToString();
+                order.PaymentTransactionId = paymentTxId;
 
                 try
                 {
@@ -301,8 +304,6 @@ public class OrdersController : ControllerBase
                     var savedOrder = await _context.Orders
                         .Include(o => o.Items).ThenInclude(i => i.Product)
                         .FirstOrDefaultAsync(o => o.Id == order.Id);
-
-                    // Do not convert OrderDate to a specific timezone on the server. Return UTC and let the client format for the user's locale.
 
                     // send confirmation via logging email (non-blocking)
                     try
@@ -431,13 +432,13 @@ public class OrdersController : ControllerBase
             // allow admins to delete via admin controller; here only owners can cancel
             if (order.UserId != userId.Value && !User.IsInRole("Admin")) return Forbid();
 
-            if (order.OrderStatus != "Processing")
+            if (order.OrderStatus != OrderStatus.Processing)
             {
                 return BadRequest(new { message = "Only orders in 'Processing' state can be cancelled." });
             }
 
             // mark as cancelled
-            order.OrderStatus = "Cancelled";
+            order.OrderStatus = OrderStatus.Cancelled;
 
             // If payment was taken, try to refund (best-effort)
             if (string.Equals(order.PaymentStatus, "Paid", StringComparison.OrdinalIgnoreCase))
@@ -519,7 +520,7 @@ public class OrdersController : ControllerBase
             {
                 Id = o.Id,
                 CreatedAt = o.OrderDate,
-                Status = o.OrderStatus,
+                Status = o.OrderStatusString,
                 Total = o.TotalAmount
             }).ToList();
 

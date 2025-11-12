@@ -45,6 +45,27 @@ public static class DbInitializer
             }
         }
 
+        // Ensure Orders table has added columns (UpdatedAt, DateDelivered) if new fields were introduced in models
+        try
+        {
+            var ensureOrdersColsSql = @"IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='UpdatedAt')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] ADD [UpdatedAt] datetime2 NULL;
+    END
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='DateDelivered')
+    BEGIN
+        ALTER TABLE [dbo].[Orders] ADD [DateDelivered] datetime2 NULL;
+    END
+END";
+            await context.Database.ExecuteSqlRawAsync(ensureOrdersColsSql);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to ensure Orders table columns (UpdatedAt/DateDelivered). This is safe to ignore if DB schema already matches.");
+        }
+
         // Seed demo users and sample data for local/offline mode
         try
         {

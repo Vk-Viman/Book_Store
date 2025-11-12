@@ -1,4 +1,5 @@
 using Readify.Helpers;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Readify.Models;
 
@@ -12,9 +13,19 @@ public class Order
     // legacy field; not used for lifecycle but kept for compatibility
     public string Status { get; set; } = "Pending";
 
-    // Payment and lifecycle statuses
+    // Payment status still string for flexibility
     public string PaymentStatus { get; set; } = "Pending";
-    public string OrderStatus { get; set; } = "Pending"; // Pending, Processing, Shipped, Delivered, Cancelled
+
+    // Persisted enum as string for OrderStatus
+    [Column("OrderStatus")]
+    public string OrderStatusString { get; set; } = "Pending";
+
+    [NotMapped]
+    public OrderStatus OrderStatus
+    {
+        get => Enum.TryParse<OrderStatus>(OrderStatusString, true, out var s) ? s : OrderStatus.Pending;
+        set => OrderStatusString = value.ToString();
+    }
 
     // Timestamps for lifecycle
     public DateTime? UpdatedAt { get; set; }

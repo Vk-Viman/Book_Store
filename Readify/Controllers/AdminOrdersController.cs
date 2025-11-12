@@ -40,7 +40,7 @@ public class AdminOrdersController : ControllerBase
             if (!string.IsNullOrWhiteSpace(status))
             {
                 var s = status.Trim();
-                query = query.Where(o => o.OrderStatus == s || o.PaymentStatus == s || o.Status == s);
+                query = query.Where(o => o.OrderStatusString == s || o.PaymentStatus == s || o.Status == s);
             }
 
             if (!string.IsNullOrWhiteSpace(q))
@@ -53,7 +53,7 @@ public class AdminOrdersController : ControllerBase
                 }
                 else
                 {
-                    query = query.Where(o => (o.PaymentTransactionId ?? string.Empty).Contains(tq) || (o.PromoCode ?? string.Empty).Contains(tq) || (o.OrderStatus ?? string.Empty).Contains(tq) || (o.PaymentStatus ?? string.Empty).Contains(tq));
+                    query = query.Where(o => (o.PaymentTransactionId ?? string.Empty).Contains(tq) || (o.PromoCode ?? string.Empty).Contains(tq) || (o.OrderStatusString ?? string.Empty).Contains(tq) || (o.PaymentStatus ?? string.Empty).Contains(tq));
                 }
             }
 
@@ -65,7 +65,7 @@ public class AdminOrdersController : ControllerBase
                 {
                     case "date": query = desc ? query.OrderByDescending(o => o.OrderDate) : query.OrderBy(o => o.OrderDate); break;
                     case "total": query = desc ? query.OrderByDescending(o => o.TotalAmount) : query.OrderBy(o => o.TotalAmount); break;
-                    case "status": query = desc ? query.OrderByDescending(o => o.OrderStatus) : query.OrderBy(o => o.OrderStatus); break;
+                    case "status": query = desc ? query.OrderByDescending(o => o.OrderStatusString) : query.OrderBy(o => o.OrderStatusString); break;
                     default: query = query.OrderByDescending(o => o.OrderDate); break;
                 }
             }
@@ -77,7 +77,23 @@ public class AdminOrdersController : ControllerBase
             var total = await query.CountAsync();
             var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
-            return Ok(new { items, total, page, pageSize });
+            // map to payload with orderStatus property for frontend compatibility
+            var payload = items.Select(o => new
+            {
+                o.Id,
+                o.UserId,
+                OrderDate = o.OrderDate,
+                o.TotalAmount,
+                orderStatus = o.OrderStatusString,
+                paymentStatus = o.PaymentStatus,
+                paymentTransactionId = o.PaymentTransactionId,
+                promoCode = o.PromoCode,
+                updatedAt = o.UpdatedAt,
+                dateDelivered = o.DateDelivered,
+                items = o.Items.Select(i => new { i.Id, i.ProductId, i.Quantity, i.UnitPrice, product = new { i.Product?.Id, i.Product?.Title, i.Product?.ImageUrl } })
+            }).ToList();
+
+            return Ok(new { items = payload, total, page, pageSize });
         }
         catch (Exception ex)
         {
@@ -94,7 +110,23 @@ public class AdminOrdersController : ControllerBase
         {
             var order = await _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).FirstOrDefaultAsync(o => o.Id == id);
             if (order == null) return NotFound(new { message = "Order not found" });
-            return Ok(order);
+
+            var payload = new
+            {
+                order.Id,
+                order.UserId,
+                OrderDate = order.OrderDate,
+                order.TotalAmount,
+                orderStatus = order.OrderStatusString,
+                paymentStatus = order.PaymentStatus,
+                paymentTransactionId = order.PaymentTransactionId,
+                promoCode = order.PromoCode,
+                updatedAt = order.UpdatedAt,
+                dateDelivered = order.DateDelivered,
+                items = order.Items.Select(i => new { i.Id, i.ProductId, i.Quantity, i.UnitPrice, product = new { i.Product?.Id, i.Product?.Title, i.Product?.ImageUrl } })
+            };
+
+            return Ok(payload);
         }
         catch (Exception ex)
         {
@@ -110,7 +142,21 @@ public class AdminOrdersController : ControllerBase
         try
         {
             var orders = await _context.Orders.Include(o => o.Items).ThenInclude(i => i.Product).Where(o => o.UserId == userId).ToListAsync();
-            return Ok(orders);
+            var payload = orders.Select(order => new
+            {
+                order.Id,
+                order.UserId,
+                OrderDate = order.OrderDate,
+                order.TotalAmount,
+                orderStatus = order.OrderStatusString,
+                paymentStatus = order.PaymentStatus,
+                paymentTransactionId = order.PaymentTransactionId,
+                promoCode = order.PromoCode,
+                updatedAt = order.UpdatedAt,
+                dateDelivered = order.DateDelivered,
+                items = order.Items.Select(i => new { i.Id, i.ProductId, i.Quantity, i.UnitPrice, product = new { i.Product?.Id, i.Product?.Title, i.Product?.ImageUrl } })
+            }).ToList();
+            return Ok(payload);
         }
         catch (Exception ex)
         {
@@ -121,8 +167,8 @@ public class AdminOrdersController : ControllerBase
 
     public class UpdateStatusDto { public string? OrderStatus { get; set; } public string? PaymentStatus { get; set; } }
 
-    // PUT api/admin/orders/update-status/{id}
-    [HttpPut("update-status/{id}")]
+    // PUT api/admin/orders/{id}/status
+    [HttpPut("{id}/status")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
     {
         try
@@ -131,12 +177,17 @@ public class AdminOrdersController : ControllerBase
             if (order == null) return NotFound(new { message = "Order not found" });
 
             var changed = false;
-            var prevOrderStatus = order.OrderStatus;
-            if (!string.IsNullOrWhiteSpace(dto.OrderStatus) && !string.Equals(order.OrderStatus, dto.OrderStatus, StringComparison.OrdinalIgnoreCase))
+            var prevOrderStatus = order.OrderStatusString;
+            if (!string.IsNullOrWhiteSpace(dto.OrderStatus) && !string.Equals(order.OrderStatusString, dto.OrderStatus, StringComparison.OrdinalIgnoreCase))
             {
-                order.OrderStatus = dto.OrderStatus!.Trim();
+                // validate incoming status is known
+                if (!Enum.TryParse<OrderStatus>(dto.OrderStatus, true, out var parsed))
+                {
+                    return BadRequest(new { message = "Invalid order status" });
+                }
+                order.OrderStatus = parsed;
                 order.UpdatedAt = DateTime.UtcNow; // track update time
-                if (string.Equals(order.OrderStatus, "Delivered", StringComparison.OrdinalIgnoreCase))
+                if (parsed == OrderStatus.Delivered)
                 {
                     order.DateDelivered = DateTime.UtcNow;
                 }
@@ -155,7 +206,7 @@ public class AdminOrdersController : ControllerBase
             _logger.LogInformation("Updated status for order {OrderId} by admin", id);
 
             // audit
-            try { await _audit.WriteAsync("UpdateOrderStatus", nameof(Order), id, $"From={prevOrderStatus} To={order.OrderStatus}"); } catch { }
+            try { await _audit.WriteAsync("UpdateOrderStatus", nameof(Order), id, $"From={prevOrderStatus} To={order.OrderStatusString}"); } catch { }
 
             // send optional email on status change
             try
@@ -164,7 +215,7 @@ public class AdminOrdersController : ControllerBase
                 var emailTo = user?.Email ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(emailTo))
                 {
-                    _ = _email.SendTemplateAsync(emailTo, "OrderStatusChanged", new { OrderId = order.Id, NewStatus = order.OrderStatus });
+                    _ = _email.SendTemplateAsync(emailTo, "OrderStatusChanged", new { OrderId = order.Id, NewStatus = order.OrderStatusString });
                 }
             }
             catch (Exception ex)
@@ -172,7 +223,23 @@ public class AdminOrdersController : ControllerBase
                 _logger.LogWarning(ex, "Failed to send order status email for order {OrderId}", id);
             }
 
-            return Ok(order);
+            // return mapped payload
+            var outp = new
+            {
+                order.Id,
+                order.UserId,
+                OrderDate = order.OrderDate,
+                order.TotalAmount,
+                orderStatus = order.OrderStatusString,
+                paymentStatus = order.PaymentStatus,
+                paymentTransactionId = order.PaymentTransactionId,
+                promoCode = order.PromoCode,
+                updatedAt = order.UpdatedAt,
+                dateDelivered = order.DateDelivered,
+                items = order.Items.Select(i => new { i.Id, i.ProductId, i.Quantity, i.UnitPrice })
+            };
+
+            return Ok(outp);
         }
         catch (Exception ex)
         {

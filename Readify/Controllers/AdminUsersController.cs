@@ -33,7 +33,7 @@ public class AdminUsersController : ControllerBase
         if (!string.IsNullOrWhiteSpace(q))
         {
             var tq = q.Trim();
-            query = query.Where(u => u.Email.Contains(tq) || u.FullName.Contains(tq) || u.Role.Contains(tq));
+            query = query.Where(u => u.Email.Contains(tq) || u.FullName.Contains(tq) || u.RoleString.Contains(tq));
         }
 
         // Sorting
@@ -44,7 +44,7 @@ public class AdminUsersController : ControllerBase
             {
                 case "email": query = dirDesc ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email); break;
                 case "name": query = dirDesc ? query.OrderByDescending(u => u.FullName) : query.OrderBy(u => u.FullName); break;
-                case "role": query = dirDesc ? query.OrderByDescending(u => u.Role) : query.OrderBy(u => u.Role); break;
+                case "role": query = dirDesc ? query.OrderByDescending(u => u.RoleString) : query.OrderBy(u => u.RoleString); break;
                 case "createdat": query = dirDesc ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt); break;
                 default: query = query.OrderBy(u => u.Id); break;
             }
@@ -56,7 +56,7 @@ public class AdminUsersController : ControllerBase
 
         var total = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(u => new { u.Id, u.Email, u.FullName, u.Role, u.IsActive, u.CreatedAt })
+            .Select(u => new { u.Id, u.Email, u.FullName, Role = u.RoleString, u.IsActive, u.CreatedAt })
             .ToListAsync();
 
         return Ok(new { items, total, page, pageSize });
@@ -68,7 +68,7 @@ public class AdminUsersController : ControllerBase
     {
         var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id);
         if (user == null) return NotFound();
-        return Ok(new { user.Id, user.Email, user.FullName, user.Role, user.IsActive, user.CreatedAt });
+        return Ok(new { user.Id, user.Email, user.FullName, Role = user.RoleString, user.IsActive, user.CreatedAt });
     }
 
     public class UpdateUserDto
@@ -98,9 +98,9 @@ public class AdminUsersController : ControllerBase
         if (user == null) return NotFound();
 
         // If changing IsActive from true->false for an admin, ensure another active admin remains
-        if (dto.IsActive.HasValue && user.IsActive && !dto.IsActive.Value && string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+        if (dto.IsActive.HasValue && user.IsActive && !dto.IsActive.Value && string.Equals(user.RoleString, "Admin", StringComparison.OrdinalIgnoreCase))
         {
-            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.Role == "Admin");
+            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.RoleString == "Admin");
             if (!otherActiveAdmins)
             {
                 return BadRequest(new { message = "Cannot deactivate the last active admin." });
@@ -109,7 +109,7 @@ public class AdminUsersController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(dto.FullName)) user.FullName = dto.FullName.Trim();
         if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email.Trim();
-        if (!string.IsNullOrWhiteSpace(dto.Role)) user.Role = dto.Role.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Role)) user.RoleString = dto.Role!.Trim();
         if (dto.IsActive.HasValue) user.IsActive = dto.IsActive.Value;
 
         await _context.SaveChangesAsync();
@@ -125,9 +125,9 @@ public class AdminUsersController : ControllerBase
         if (user == null) return NotFound();
 
         // Prevent deleting last admin
-        if (user.IsActive && string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+        if (user.IsActive && string.Equals(user.RoleString, "Admin", StringComparison.OrdinalIgnoreCase))
         {
-            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.Role == "Admin");
+            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.RoleString == "Admin");
             if (!otherActiveAdmins)
             {
                 return BadRequest(new { message = "Cannot deactivate the last active admin." });
@@ -147,9 +147,9 @@ public class AdminUsersController : ControllerBase
         if (user == null) return NotFound();
 
         // If deactivating an admin, ensure at least one other active admin remains
-        if (user.IsActive && string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase))
+        if (user.IsActive && string.Equals(user.RoleString, "Admin", StringComparison.OrdinalIgnoreCase))
         {
-            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.Role == "Admin");
+            var otherActiveAdmins = await _context.Users.AnyAsync(u => u.Id != id && u.IsActive && u.RoleString == "Admin");
             if (!otherActiveAdmins)
             {
                 return BadRequest(new { message = "Cannot deactivate the last active admin." });
@@ -167,7 +167,7 @@ public class AdminUsersController : ControllerBase
     {
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
-        user.Role = "Admin";
+        user.RoleString = "Admin";
         user.IsActive = true; // ensure admin accounts are active
         await _context.SaveChangesAsync();
         _logger.LogInformation("Promoted user {UserId} to Admin", id);
