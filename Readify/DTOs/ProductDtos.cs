@@ -11,6 +11,7 @@ namespace Readify.DTOs
         public DateTime? ReleaseDate { get; set; }
         public decimal Price { get; set; }
         public int StockQty { get; set; }
+        public int InitialStock { get; set; } // expose initial stock baseline
         public int CategoryId { get; set; }
         public string CategoryName { get; set; } = string.Empty;
         public string ImageUrl { get; set; } = string.Empty;
@@ -18,5 +19,6 @@ namespace Readify.DTOs
         public string Format { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public decimal? AvgRating { get; set; }
     }
 }

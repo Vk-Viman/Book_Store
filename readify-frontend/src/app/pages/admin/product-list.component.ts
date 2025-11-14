@@ -94,6 +94,8 @@ export class AdminProductListComponent {
         next: (_res: any) => {
           this.deleting.delete(id);
           this.notify.success('Product deleted');
+          // notify other components
+          try { this.product.notifyChange(); } catch {}
           this.load();
         },
         error: (err: any) => {

@@ -1,0 +1,8 @@
+:root{ --status-amber:#ffb300; --status-blue:#1e88e5; --status-green:#43a047; }
+
+.status-pending { background: var(--status-amber); color: rgba(0,0,0,0.85); }
+.status-shipped { background: var(--status-blue); color: #fff; }
+.status-delivered { background: var(--status-green); color: #fff; }
+.status-default { background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.85); }
+
+.mat-chip { margin-right: 8px; }

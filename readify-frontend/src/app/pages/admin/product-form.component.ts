@@ -306,10 +306,10 @@ export class AdminProductFormComponent {
     this.errorMsg = '';
 
     if (this.isNew) {
-      this.prodSvc.createProduct(this.form.value).subscribe(() => { this.notify.success('Product created'); this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to create product'; this.errorMsg = msg; this.notify.error(msg); });
+      this.prodSvc.createProduct(this.form.value).subscribe(() => { this.notify.success('Product created'); try { this.prodSvc.notifyChange(); } catch {} this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to create product'; this.errorMsg = msg; this.notify.error(msg); });
     } else {
       const id = this.form.value.id;
-      this.prodSvc.updateProduct(id, this.form.value).subscribe(() => { this.notify.success('Product updated'); this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to update product'; this.errorMsg = msg; this.notify.error(msg); });
+      this.prodSvc.updateProduct(id, this.form.value).subscribe(() => { this.notify.success('Product updated'); try { this.prodSvc.notifyChange(); } catch {} this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to update product'; this.errorMsg = msg; this.notify.error(msg); });
     }
   }
 }

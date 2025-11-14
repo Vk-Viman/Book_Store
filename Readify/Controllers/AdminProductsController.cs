@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Readify.Data;
 using Readify.Models;
 using Readify.Services;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Readify.Controllers
 {
@@ -19,14 +20,16 @@ namespace Readify.Controllers
         private readonly IAuditService _audit;
         private readonly IEmailService _email;
         private readonly IConfiguration _config;
+        private readonly IMemoryCache _cache;
 
-        public AdminProductsController(AppDbContext context, ILogger<AdminProductsController> logger, IAuditService audit, IEmailService email, IConfiguration config)
+        public AdminProductsController(AppDbContext context, ILogger<AdminProductsController> logger, IAuditService audit, IEmailService email, IConfiguration config, IMemoryCache cache)
         {
             _context = context;
             _logger = logger;
             _audit = audit;
             _email = email;
             _config = config;
+            _cache = cache;
         }
 
         // POST api/admin/products
@@ -46,12 +49,22 @@ namespace Readify.Controllers
 
             product.CreatedAt = DateTime.UtcNow;
             product.UpdatedAt = DateTime.UtcNow;
+            // set initial stock snapshot
+            product.InitialStock = product.StockQty;
             _context.Products.Add(product);
 
             try
             {
                 await _context.SaveChangesAsync();
                 await _audit.WriteAsync("Create", nameof(Product), product.Id);
+
+                // recalc avg rating (initially null)
+                try
+                {
+                    product.AvgRating = null;
+                    await _context.SaveChangesAsync();
+                }
+                catch { }
 
                 var adminEmail = _config["Notifications:AdminEmail"] ?? _config["Seed:AdminEmail"]; // fallback
                 if (!string.IsNullOrWhiteSpace(adminEmail))
@@ -88,6 +101,9 @@ namespace Readify.Controllers
                 return BadRequest(new { message = "Selected category does not exist. Please select or create a category." });
             }
 
+            // track if stock increased from previous
+            var prevStock = product.StockQty;
+
             product.Title = updated.Title;
             product.Description = updated.Description;
             product.ISBN = updated.ISBN;
@@ -102,10 +118,44 @@ namespace Readify.Controllers
             product.Format = updated.Format;
             product.UpdatedAt = DateTime.UtcNow;
 
+            // if initial stock was zero or stock increased above previous initial, update InitialStock
+            try
+            {
+                if (product.InitialStock <= 0 || updated.StockQty > product.InitialStock) product.InitialStock = updated.StockQty;
+            }
+            catch { }
+
             try
             {
                 await _context.SaveChangesAsync();
                 await _audit.WriteAsync("Update", nameof(Product), product.Id);
+
+                // after update, recalc avg rating to ensure cached column matches reviews
+                try
+                {
+                    var avg = await _context.Reviews.Where(x => x.ProductId == product.Id && x.IsApproved).AverageAsync(x => (decimal?)x.Rating);
+                    product.AvgRating = avg == null ? null : Math.Round(avg.Value, 2);
+                    await _context.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to recalc avg rating for product {ProductId} after update", product.Id);
+                }
+
+                // Invalidate recommendation caches for users who have this product in wishlist
+                try
+                {
+                    var affected = await _context.Wishlists.Where(w => w.ProductId == product.Id).Select(w => w.UserId).Distinct().ToListAsync();
+                    foreach (var u in affected)
+                    {
+                        var key = $"recommendations:user:{u}";
+                        _cache.Remove(key);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to invalidate recommendations cache after product update for {ProductId}", product.Id);
+                }
             }
             catch (DbUpdateException dbEx)
             {

@@ -7,23 +7,103 @@
           <label class="form-label">Search</label>
           <input class="form-control" [(ngModel)]="q" (ngModelChange)="applyFilters()" placeholder="Search by title or author" aria-label="Search books" />
         </div>
+
+        <div class="mb-2">
+          <label class="form-label">Categories</label>
+          <mat-form-field appearance="outline" class="w-100">
+            <mat-select [(ngModel)]="selectedCategoryIds" (selectionChange)="applyFilters()" multiple placeholder="Select categories">
+              <mat-option *ngFor="let c of categories" [value]="c.id">{{c.name}}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Author</label>
+          <mat-form-field appearance="outline" class="w-100">
+            <mat-select [(ngModel)]="author" (selectionChange)="applyFilters()" placeholder="Select author">
+              <mat-option *ngFor="let a of categories" [value]="a.name">{{a.name}}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
         <div class="mb-2">
           <label class="form-label">Price range</label>
           <div class="range-slider-wrapper">
-            <div class="range-slider">
-              <input class="range-input" type="range" min="0" max="100" [(ngModel)]="minPrice" (ngModelChange)="onSliderChange($event,'min')" aria-label="Minimum price" />
-              <input class="range-input" type="range" min="0" max="100" [(ngModel)]="maxPrice" (ngModelChange)="onSliderChange($event,'max')" aria-label="Maximum price" />
-              <div class="range-labels"><span class="range-label-min">{{ priceMin | currency }}</span><span class="range-label-max">{{ priceMax | currency }}</span></div>
-            </div>
+            <input class="form-control form-control-range" type="range" min="0" max="100" [(ngModel)]="minPrice" (ngModelChange)="onSliderChange($event,'min')" />
+            <input class="form-control form-control-range mt-2" type="range" min="0" max="100" [(ngModel)]="maxPrice" (ngModelChange)="onSliderChange($event,'max')" />
+            <div class="range-labels"><span class="range-label-min">{{ priceMin | currency }}</span><span class="range-label-max">{{ priceMax | currency }}</span></div>
           </div>
         </div>
+
+        <div class="mb-2">
+          <label class="form-label">Rating</label>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm" [class.active]="minRatingFilter===4" (click)="setRatingFilter(4)">4★+</button>
+            <button class="btn btn-sm" [class.active]="minRatingFilter===3" (click)="setRatingFilter(3)">3★+</button>
+            <button class="btn btn-sm" [class.active]="minRatingFilter===2" (click)="setRatingFilter(2)">2★+</button>
+            <button class="btn btn-sm" [class.active]="minRatingFilter===1" (click)="setRatingFilter(1)">1★+</button>
+            <button class="btn btn-sm" [class.active]="minRatingFilter==null" (click)="setRatingFilter(null)">Any</button>
+          </div>
+        </div>
+
+        <div class="mb-2 d-flex align-items-center">
+          <input type="checkbox" id="inStock" [(ngModel)]="inStockOnly" (change)="setInStockOnly(inStockOnly)" />
+          <label for="inStock" class="ms-2">In stock only</label>
+        </div>
+
         <div *ngIf="hasActiveFilters()" class="active-filters">
           <button class="btn btn-sm btn-outline-secondary me-2" (click)="clearFilters()">Clear</button>
         </div>
+
+        <!-- Recommendations preview -->
+        <div class="mt-3">
+          <h6>{{ (recommendations && recommendations.length) ? 'Recommended for you' : 'Popular books' }}</h6>
+          <div *ngFor="let r of (recommendations?.length ? recommendations.slice(0,5) : products.slice(0,5))" class="d-flex align-items-center my-2">
+            <img [src]="r.imageUrl || 'assets/book-placeholder.svg'" width="40" height="56" class="me-2" />
+            <div>
+              <div class="small fw-semibold">{{ r.title }}</div>
+              <div class="small text-muted">{{ r.price | currency }}</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
     <div class="col-md-9">
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">{{ (recommendations && recommendations.length) ? 'Recommended for you' : 'Popular books' }}</h5>
+        <div class="d-flex align-items-center gap-2">
+          <label class="small mb-0 me-2">Sort by</label>
+          <select class="form-select form-select-sm" [(ngModel)]="sort" (ngModelChange)="applyFilters()">
+            <option value="">Name A → Z</option>
+            <option value="price_asc">Price: Low → High</option>
+            <option value="price_desc">Price: High → Low</option>
+            <option value="rating_desc">Rating: High → Low</option>
+            <option value="newest">Newest</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Full recommendations row -->
+      <div class="mb-3 rec-row-wrapper">
+        <div class="rec-nav left" (click)="scrollRecsLeft()"><mat-icon>chevron_left</mat-icon></div>
+        <div class="d-flex flex-row gap-3 overflow-auto mt-2" #recRow>
+          <mat-card *ngFor="let it of (recommendations?.length ? recommendations.slice(0,8) : products.slice(0,8))" class="rec-card" (mouseenter)="pauseAutoplay()">
+            <img [src]="it.imageUrl || 'assets/book-placeholder.svg'" class="rec-image" alt="{{it.title}}" />
+            <mat-card-content>
+              <div class="rec-title" [innerHTML]="it.title | highlight:q"></div>
+              <div class="rec-price text-muted">{{ it.price | currency }}</div>
+            </mat-card-content>
+            <mat-card-actions>
+              <a [routerLink]="['/books', it.id]" class="btn btn-sm btn-primary">View</a>
+            </mat-card-actions>
+          </mat-card>
+        </div>
+        <div class="rec-nav right" (click)="scrollRecsRight()"><mat-icon>chevron_right</mat-icon></div>
+      </div>
+
       <div *ngIf="loading">
         <app-loading-skeleton type="card"></app-loading-skeleton>
       </div>
@@ -35,30 +115,41 @@
 
       <div *ngIf="!loading && products.length>0" class="row g-3">
         <div *ngFor="let p of products" class="col-6 col-md-4">
-          <mat-card class="product-card" role="article" tabindex="0" (click)="addToCart(p)">
+          <mat-card [ngClass]="{'product-card': true, 'low-stock': isLowStock(p)}" role="article" tabindex="0" (click)="gotoProduct(p.id)">
             <button mat-icon-button color="warn" class="wishlist-btn" aria-label="Toggle wishlist" (click)="toggleWishlist(p,$event)">
               <mat-icon>{{ wishlist.has(p.id) ? 'favorite' : 'favorite_border' }}</mat-icon>
             </button>
             <img [src]="p.imageUrl || 'assets/book-placeholder.svg'" (error)="onImgError($event)" loading="lazy" alt="{{p.title}} cover" class="product-image" />
             <mat-card-content>
-              <div class="title">{{ p.title }}</div>
+              <div class="title"><span [innerHTML]="p.title | highlight:q"></span> <span *ngIf="isLowStock(p)" class="stock-low-badge">Low stock ({{ ((p.stock ?? p.stockQty) / (p.initialStock ?? p.InitialStock ?? 1) * 100) | number:'1.0-0' }}%)</span></div>
               <div class="author text-muted small">{{ p.authors }}</div>
               <div class="price-tag">{{ p.price | currency }}</div>
+              <div class="rating" *ngIf="p.avgRating">
+                <ng-container *ngFor="let i of [1,2,3,4,5]; let idx = index">
+                  <mat-icon color="accent">{{ (p.avgRating >= (idx+1) ? 'star' : (p.avgRating >= (idx+0.5) ? 'star_half' : 'star_border')) }}</mat-icon>
+                </ng-container>
+                <div class="ms-2 small text-muted">{{ p.avgRating | number:'1.1-2' }}</div>
+              </div>
               <div class="stock-info" *ngIf="p.stock>0">In stock: {{p.stock}}</div>
               <div class="stock-info text-danger" *ngIf="p.stock===0">Out of stock</div>
             </mat-card-content>
+            <mat-card-actions>
+              <button mat-stroked-button color="primary" (click)="addToCart(p); $event.stopPropagation()">
+                <mat-icon>shopping_cart</mat-icon>
+                Add to Cart
+              </button>
+              <button mat-button (click)="$event.stopPropagation(); gotoProduct(p.id)">
+                View
+              </button>
+            </mat-card-actions>
           </mat-card>
         </div>
       </div>
 
-      <div *ngIf="!loading && totalPages>1" class="mt-3">
-        <nav aria-label="Product pages">
-          <ul class="pagination justify-content-center">
-            <li class="page-item" [class.disabled]="page===1"><button class="page-link" (click)="goto(page-1)">Previous</button></li>
-            <li *ngFor="let p of visiblePages" class="page-item" [class.active]="p===page"><button class="page-link" (click)="goto(p)">{{p}}</button></li>
-            <li class="page-item" [class.disabled]="page===totalPages"><button class="page-link" (click)="goto(page+1)">Next</button></li>
-          </ul>
-        </nav>
+      <div *ngIf="!loading && totalPages>1" class="mt-3 d-flex justify-content-center align-items-center">
+        <button class="btn btn-sm btn-outline-primary me-2" (click)="goto(page-1)" [disabled]="page===1">Previous</button>
+        <div *ngFor="let p of visiblePages" class="btn btn-sm me-1" [class.active]="p===page" (click)="goto(p)">{{p}}</div>
+        <button class="btn btn-sm btn-outline-primary ms-2" (click)="goto(page+1)" [disabled]="page===totalPages">Next</button>
       </div>
 
     </div>

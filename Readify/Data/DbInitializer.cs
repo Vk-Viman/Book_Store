@@ -9,13 +9,13 @@ public static class DbInitializer
 {
     public static async Task InitializeAsync(AppDbContext context, IConfiguration config, ILogger logger, IWebHostEnvironment env)
     {
-        // In Development use EnsureCreated to avoid migration conflicts from ad-hoc changes.
+        // In Development use migrations to keep DB schema in sync with model changes.
         try
         {
             if (env.IsDevelopment())
             {
-                logger.LogInformation("Development mode: ensuring database is created (EnsureCreated)");
-                await context.Database.EnsureCreatedAsync();
+                logger.LogInformation("Development mode: applying migrations (Migrate)");
+                await context.Database.MigrateAsync();
             }
             else
             {
@@ -64,6 +64,32 @@ END";
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to ensure Orders table columns (UpdatedAt/DateDelivered). This is safe to ignore if DB schema already matches.");
+        }
+
+        // Ensure Products table has InitialStock column (add if missing)
+        try
+        {
+            var ensureInitialStockSql = @"-- Add InitialStock column if missing on Product or Products table (idempotent)
+IF OBJECT_ID(N'[dbo].[Product]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Product' AND COLUMN_NAME='InitialStock')
+    BEGIN
+        ALTER TABLE [dbo].[Product] ADD [InitialStock] int NOT NULL DEFAULT 0;
+    END
+END
+
+IF OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Products' AND COLUMN_NAME='InitialStock')
+    BEGIN
+        ALTER TABLE [dbo].[Products] ADD [InitialStock] int NOT NULL DEFAULT 0;
+    END
+END";
+            await context.Database.ExecuteSqlRawAsync(ensureInitialStockSql);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to ensure Products table InitialStock column. This is safe to ignore if DB schema already matches.");
         }
 
         // Seed demo users and sample data for local/offline mode
@@ -117,9 +143,9 @@ END";
             {
                 var firstCategory = await context.Categories.OrderBy(c => c.Id).FirstAsync();
                 var products = new[] {
-                    new Product { Title = "The Pragmatic Programmer", Authors = "Andrew Hunt, David Thomas", Description = "Classic programming book.", Price = 25.99m, StockQty = 10, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                    new Product { Title = "Clean Code", Authors = "Robert C. Martin", Description = "A Handbook of Agile Software Craftsmanship.", Price = 29.99m, StockQty = 15, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                    new Product { Title = "Sapiens", Authors = "Yuval Noah Harari", Description = "A Brief History of Humankind.", Price = 19.99m, StockQty = 20, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                    new Product { Title = "The Pragmatic Programmer", Authors = "Andrew Hunt, David Thomas", Description = "Classic programming book.", Price = 25.99m, StockQty = 10, InitialStock = 10, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                    new Product { Title = "Clean Code", Authors = "Robert C. Martin", Description = "A Handbook of Agile Software Craftsmanship.", Price = 29.99m, StockQty = 15, InitialStock = 15, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                    new Product { Title = "Sapiens", Authors = "Yuval Noah Harari", Description = "A Brief History of Humankind.", Price = 19.99m, StockQty = 20, InitialStock = 20, CategoryId = firstCategory.Id, ImageUrl = "/images/book-placeholder.svg", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
                 };
                 context.Products.AddRange(products);
                 await context.SaveChangesAsync();

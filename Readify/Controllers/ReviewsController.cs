@@ -33,9 +33,10 @@ public class ReviewsController : ControllerBase
         if (!uid.HasValue) return Unauthorized();
         rv.UserId = uid.Value;
         rv.CreatedAt = DateTime.UtcNow;
-        rv.IsApproved = false; // require moderation
+        rv.IsApproved = false; // require moderation by default
         _db.Reviews.Add(rv);
         await _db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetByProduct), new { productId = rv.ProductId }, rv);
     }
 

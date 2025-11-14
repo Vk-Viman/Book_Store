@@ -1,22 +1,20 @@
-import { Component, ViewChild, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy, NgZone } from '@angular/core';
+import { Component, ChangeDetectorRef, AfterViewInit, OnDestroy, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AdminDashboardService, TopProductDto } from './admin-dashboard.service';
-
-interface DashboardStats {
-  totalUsers: number;
-  totalOrders: number;
-  totalSales: number;
-}
+import { AdminDashboardService, TopProductDto } from '../../services/admin-dashboard.service';
+import { NotificationService } from '../../services/notification.service';
+import { FormsModule } from '@angular/forms';
+import { MatGridListModule } from '@angular/material/grid-list';
+import { ProductService } from '../../services/product.service';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, MatButtonModule, MatTooltipModule],
+  imports: [CommonModule, FormsModule, MatCardModule, MatIconModule, MatProgressSpinnerModule, MatButtonModule, MatTooltipModule, MatGridListModule],
   template: `
     <div class="container mt-4">
       <h2 class="mb-4 d-flex align-items-center">
@@ -60,29 +58,64 @@ interface DashboardStats {
         </mat-card>
       </div>
 
+      <!-- Filters -->
+      <div class="filters mb-3 d-flex gap-2 align-items-center">
+        <label>From</label>
+        <input type="date" [(ngModel)]="fromDate" />
+        <label>To</label>
+        <input type="date" [(ngModel)]="toDate" />
+        <label>Category</label>
+        <select [(ngModel)]="selectedCategory">
+          <option [value]="0">All</option>
+          <option *ngFor="let c of categories" [value]="c.id">{{c.name}}</option>
+        </select>
+        <button mat-stroked-button color="primary" (click)="applyFilters()">Apply</button>
+      </div>
+
       <div *ngIf="!loading" class="row">
-        <div class="col-12">
-          <mat-card class="chart-card">
-            <mat-card-header>
-              <mat-card-title>Top Products</mat-card-title>
-            </mat-card-header>
-
-            <!-- Floating toolbar to ensure visibility -->
-            <div class="floating-toolbar" role="toolbar" aria-label="Chart actions">
-              <button class="export-btn" title="Download chart as PNG" (click)="exportChartPng()" [disabled]="!chart">📷 Export PNG</button>
-              <button class="export-btn secondary" title="Download top products as CSV" (click)="exportCsv()" [disabled]="topProducts.length===0">⬇️ Export CSV</button>
-            </div>
-
+        <div class="col-12 mb-3">
+          <mat-card>
+            <mat-card-title>Top Products</mat-card-title>
             <mat-card-content>
-              <div *ngIf="topProducts.length === 0" class="text-muted py-3">No sales data yet.</div>
-
-              <div class="chart-wrap">
-                <canvas #topCanvas id="topProductsChart"></canvas>
+              <div *ngIf="topProducts.length===0" class="text-muted py-3">No sales data yet.</div>
+              <div *ngIf="topProducts.length>0">
+                <button class="export-btn" title="Export CSV" (click)="exportTopProductsCsv()">⬇️ Export CSV</button>
               </div>
-
+              <div class="chart-wrap mt-2">
+                <canvas id="topProductsCanvas"></canvas>
+              </div>
             </mat-card-content>
           </mat-card>
         </div>
+
+        <div class="col-md-6">
+          <mat-card class="chart-card">
+            <mat-card-title>Revenue</mat-card-title>
+            <mat-card-content><div class="chart-wrap"><canvas id="revenueCanvas"></canvas></div></mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-6">
+          <mat-card class="chart-card">
+            <mat-card-title>Top Categories</mat-card-title>
+            <mat-card-content><div class="chart-wrap"><canvas id="topCategoriesCanvas"></canvas></div></mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-6">
+          <mat-card class="chart-card">
+            <mat-card-title>Top Authors</mat-card-title>
+            <mat-card-content><div class="chart-wrap"><canvas id="topAuthorsCanvas"></canvas></div></mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="col-md-6">
+          <mat-card class="chart-card">
+            <mat-card-title>User Registrations</mat-card-title>
+            <mat-card-content><div class="chart-wrap"><canvas id="usersCanvas"></canvas></div></mat-card-content>
+          </mat-card>
+        </div>
+
       </div>
 
     </div>
@@ -95,52 +128,42 @@ interface DashboardStats {
     .stat-label { font-size: 0.85rem; color: rgba(0,0,0,0.6); }
     .chart-wrap { position: relative; width: 100%; height: 300px; }
     canvas { width: 100% !important; height: 100% !important; display:block; }
-
-    /* floating toolbar */
     .chart-card { position: relative; }
-    .floating-toolbar { position: absolute; top: 12px; right: 12px; z-index: 1000; display:flex; gap:8px; }
+    .floating-toolbar { position: absolute; top: 12px; right: 12px; z-index:1000; display:flex; gap:8px; }
     .export-btn { background:#1e88e5; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
     .export-btn.secondary { background:#6c757d; }
-    .export-btn[disabled] { opacity:0.5; cursor:not-allowed; }
-
-    @media (max-width: 767px) { .stat-value { font-size: 1.25rem; } .stat-card { min-width: 140px; } .chart-wrap { height: 220px; } }
+    .filters { margin-bottom: 12px; }
+    @media (max-width: 767px) { .chart-wrap { height: 220px; } }
   `]
 })
 export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
-  stats: DashboardStats = { totalUsers: 0, totalOrders: 0, totalSales: 0 };
+  stats = { totalUsers: 0, totalOrders: 0, totalSales: 0 };
   topProducts: TopProductDto[] = [];
   loading = true;
 
-  @ViewChild('topCanvas', { static: false }) topCanvas?: ElementRef<HTMLCanvasElement>;
+  fromDate: string | null = null;
+  toDate: string | null = null;
+  categories: any[] = [];
+  selectedCategory = 0;
+  period = 30;
 
-  public chart: any | null = null; // made public so template can read
-  private resizeObs?: ResizeObserver;
   private ChartCtor: any | null = null;
+  private charts = new Map<string, any>();
+  public topChart: any | null = null;
 
-  constructor(private svc: AdminDashboardService, private cd: ChangeDetectorRef, private zone: NgZone) {
+  // debug flag to log API payloads when investigating totals
+  private debug = false;
+
+  constructor(private svc: AdminDashboardService, private cd: ChangeDetectorRef, private zone: NgZone, private notify: NotificationService, private prodSvc: ProductService) {
     this.load();
   }
 
   ngAfterViewInit(): void {
-    // Observe size; initialize chart once the canvas has non-zero size
-    const canvas = this.topCanvas?.nativeElement;
-    if (!canvas) return;
-    this.resizeObs = new ResizeObserver(() => {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        this.initChartIfNeeded();
-        if (this.chart && this.topProducts.length > 0) {
-          this.updateChart();
-        }
-      }
-    });
-    this.resizeObs.observe(canvas);
+    // after view init, render charts if data already fetched
+    setTimeout(() => this.loadCharts(), 0);
   }
 
-  ngOnDestroy(): void {
-    try { this.resizeObs?.disconnect(); } catch {}
-    try { this.chart?.destroy?.(); } catch {}
-  }
+  ngOnDestroy(): void { try { this.charts.forEach(c => c?.destroy?.()); } catch {} }
 
   private async ensureChartCtor() {
     if (this.ChartCtor) return;
@@ -148,80 +171,124 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     this.ChartCtor = (mod as any).default ?? mod;
   }
 
-  private async initChartIfNeeded() {
-    if (this.chart) return;
-    const canvas = this.topCanvas?.nativeElement;
-    if (!canvas) return;
+  private async createChart(id: string, cfg: any) {
     await this.ensureChartCtor();
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    this.chart = new this.ChartCtor(ctx, {
-      type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Quantity Sold', data: [], backgroundColor: '#3f51b5' }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
+    const el = document.getElementById(id) as HTMLCanvasElement | null;
+    if (!el) return null;
+    const ctx = el.getContext('2d');
+    if (!ctx) return null;
+    // destroy existing
+    const existing = this.charts.get(id);
+    if (existing) try { existing.destroy(); } catch {}
+    const chart = new this.ChartCtor(ctx, cfg);
+    this.charts.set(id, chart);
+    return chart;
   }
 
-  private updateChart() {
-    if (!this.chart) return;
-    this.chart.data.labels = this.topProducts.map(p => p.productName);
-    this.chart.data.datasets[0].data = this.topProducts.map(p => p.quantitySold);
-    this.zone.runOutsideAngular(() => {
-      this.chart.update();
-    });
+  private async renderTopProductsCanvas() {
+    // render or update top products chart canvas
+    if (!this.topProducts || this.topProducts.length === 0) return;
+    const cfgTop = {
+      type: 'bar',
+      data: {
+        labels: this.topProducts.map(p => p.productName),
+        datasets: [{ label: 'Qty', data: this.topProducts.map(p => p.quantitySold), backgroundColor: '#3f51b5' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    };
+    try {
+      this.topChart = await this.createChart('topProductsCanvas', cfgTop);
+    } catch (ex) {
+      console.warn('Failed to render top products canvas', ex);
+    }
+  }
+
+  private async loadCharts() {
+    // top products
+    try {
+      const t: any = await this.svc.getTopProducts().toPromise();
+      if (this.debug) console.debug('top-products', t);
+      this.topProducts = t || [];
+      const cfgTop = { type: 'bar', data: { labels: this.topProducts.map(p => p.productName), datasets: [{ label: 'Qty', data: this.topProducts.map(p => p.quantitySold), backgroundColor: '#3f51b5' }] }, options: { responsive: true, maintainAspectRatio: false } };
+      this.topChart = await this.createChart('topProductsCanvas', cfgTop);
+    } catch (ex) { console.warn('Failed to load top products', ex); }
+
+    // revenue
+    try {
+      const r: any = await this.svc.getRevenue(this.period, this.fromDate || undefined, this.toDate || undefined, this.selectedCategory || undefined).toPromise();
+      if (this.debug) console.debug('revenue', r);
+      const labels = r?.labels || [];
+      const values = r?.values || [];
+      // determine totalRevenue from possible property names, fall back to sum of values
+      const apiTotal = (r && (r.totalRevenue ?? r.TotalRevenue ?? r.Total)) ?? null;
+      const fallbackTotal = values.reduce((s: number, v: any) => s + Number(v || 0), 0);
+      const totalFromApi = apiTotal != null ? Number(apiTotal) : fallbackTotal;
+      // normalize to two decimals to avoid floating point display mismatch
+      this.stats.totalSales = Math.round((totalFromApi + Number.EPSILON) * 100) / 100;
+
+      const cfg = { type: 'line', data: { labels, datasets: [{ label: 'Revenue', data: values, borderColor: '#3f51b5', backgroundColor: 'rgba(63,81,181,0.12)', fill: true }] }, options: { responsive: true, maintainAspectRatio: false } };
+      await this.createChart('revenueCanvas', cfg);
+    } catch (ex) { console.warn('Failed to load revenue', ex); }
+
+    // top categories
+    try {
+      const c: any = await this.svc.getTopCategories(8, this.fromDate || undefined, this.toDate || undefined).toPromise();
+      const labels = c?.labels || [];
+      const values = c?.values || [];
+      const cfg = { type: 'bar', data: { labels, datasets: [{ label: 'Revenue', data: values, backgroundColor: '#4caf50' }] }, options: { responsive: true, maintainAspectRatio: false } };
+      await this.createChart('topCategoriesCanvas', cfg);
+    } catch (ex) { console.warn('Failed to load top categories', ex); }
+
+    // top authors
+    try {
+      const a: any = await this.svc.getTopAuthors(8, this.fromDate || undefined, this.toDate || undefined).toPromise();
+      const labels = a?.labels || [];
+      const values = a?.values || [];
+      const cfg = { type: 'bar', data: { labels, datasets: [{ label: 'Revenue', data: values, backgroundColor: '#ff9800' }] }, options: { responsive: true, maintainAspectRatio: false } };
+      await this.createChart('topAuthorsCanvas', cfg);
+    } catch (ex) { console.warn('Failed to load top authors', ex); }
+
+    // users
+    try {
+      const u: any = await this.svc.getUserTrend(this.period, this.fromDate || undefined, this.toDate || undefined).toPromise();
+      const labels = u?.labels || [];
+      const values = u?.values || [];
+      const cfg = { type: 'line', data: { labels, datasets: [{ label: 'Users', data: values, borderColor: '#009688', backgroundColor: 'rgba(0,150,136,0.12)', fill: true }] }, options: { responsive: true, maintainAspectRatio: false } };
+      await this.createChart('usersCanvas', cfg);
+    } catch (ex) { console.warn('Failed to load users', ex); }
   }
 
   load() {
     this.loading = true;
-    this.svc.getStats().subscribe({ next: (s) => {
-        this.stats = { totalUsers: s.totalUsers ?? 0, totalOrders: s.totalOrders ?? 0, totalSales: s.totalSales ?? 0 };
-        this.svc.getTopProducts().subscribe({ next: (t) => {
-            this.topProducts = t || [];
-            this.cd.detectChanges();
-            // initialize or update chart after data arrives
-            setTimeout(async () => { await this.initChartIfNeeded(); this.updateChart(); }, 0);
-            this.loading = false;
-          }, error: () => this.loading = false });
+    // call filtered summary (if filters provided)
+    this.svc.getSummary(this.fromDate || undefined, this.toDate || undefined, this.selectedCategory || undefined).subscribe({ next: (s: any) => {
+        // s should contain TotalUsers/TotalOrders/TotalRevenue (case may vary)
+        this.stats.totalUsers = s?.totalUsers ?? s?.TotalUsers ?? this.stats.totalUsers;
+        this.stats.totalOrders = s?.totalOrders ?? s?.TotalOrders ?? this.stats.totalOrders;
+        // set totalSales from filtered summary (ensure numeric and rounded)
+        const apiSales = s?.totalRevenue ?? s?.TotalRevenue ?? s?.totalSales ?? s?.TotalSales;
+        if (apiSales != null) {
+          this.stats.totalSales = Math.round((Number(apiSales) + Number.EPSILON) * 100) / 100;
+        }
+
+        // load categories
+        this.prodSvc.getCategories().subscribe({ next: (cats: any) => { this.categories = cats || []; }, error: () => { this.categories = []; } });
+
+        // load top products
+        this.svc.getTopProducts().subscribe({ next: (t) => { this.topProducts = t || []; this.cd.detectChanges(); setTimeout(() => this.renderTopProductsCanvas(), 0); }, error: () => {} });
+
+        // load charts
+        setTimeout(() => this.loadCharts(), 0);
+        this.loading = false;
       }, error: () => { this.loading = false; } });
   }
 
-  exportChartPng() {
-    if (!this.chart) return;
-    try {
-      const origCanvas = this.topCanvas?.nativeElement;
-      if (!origCanvas) return;
-
-      // Create a temporary canvas and draw a light background behind the chart
-      const temp = document.createElement('canvas');
-      // Use the same pixel size as the source canvas
-      const width = origCanvas.width || Math.max(origCanvas.clientWidth, 800);
-      const height = origCanvas.height || Math.max(origCanvas.clientHeight, 300);
-      temp.width = width;
-      temp.height = height;
-
-      const ctx = temp.getContext('2d');
-      if (!ctx) return;
-
-      // light background (very light gray-blue) for better contrast on white pages
-      ctx.fillStyle = '#fbfcfe';
-      ctx.fillRect(0, 0, temp.width, temp.height);
-
-      // draw the original chart canvas onto the temporary canvas
-      ctx.drawImage(origCanvas, 0, 0, temp.width, temp.height);
-
-      const url = temp.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `top-products-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (ex) {
-      console.warn('Export PNG failed', ex);
-    }
+  applyFilters() {
+    // reload summary and charts using the selected filters
+    this.load();
   }
 
-  exportCsv() {
+  exportTopProductsCsv() {
     if (!this.topProducts || this.topProducts.length === 0) return;
     const rows = [['Product','Quantity']];
     for (const p of this.topProducts) rows.push([p.productName, String(p.quantitySold)]);
@@ -236,4 +303,19 @@ export class AdminDashboardComponent implements AfterViewInit, OnDestroy {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
+
+  exportChartPng(canvasId: string) {
+    const el = document.getElementById(canvasId) as HTMLCanvasElement | null;
+    if (!el) return;
+    try {
+      const url = el.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${canvasId}-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (ex) { console.warn('Export PNG failed', ex); }
+  }
+
 }

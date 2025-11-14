@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Readify.Data;
 using Readify.Models;
 
@@ -13,11 +14,13 @@ public class WishlistController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ILogger<WishlistController> _logger;
+    private readonly IMemoryCache _cache;
 
-    public WishlistController(AppDbContext db, ILogger<WishlistController> logger)
+    public WishlistController(AppDbContext db, ILogger<WishlistController> logger, IMemoryCache cache)
     {
         _db = db;
         _logger = logger;
+        _cache = cache;
     }
 
     private int? CurrentUserId()
@@ -32,7 +35,15 @@ public class WishlistController : ControllerBase
     {
         var uid = CurrentUserId();
         if (!uid.HasValue) return Unauthorized();
-        var items = await _db.Wishlists.Include(w => w.Product).Where(w => w.UserId == uid.Value).Select(w => new { w.ProductId, Product = new { w.Product.Id, w.Product.Title, w.Product.ImageUrl, w.Product.Price } }).ToListAsync();
+
+        // materialize entries and project safely to avoid nullable dereference warnings
+        var raw = await _db.Wishlists.Include(w => w.Product).Where(w => w.UserId == uid.Value).ToListAsync();
+        var items = raw.Select(w => new
+        {
+            w.ProductId,
+            Product = w.Product == null ? null : new { w.Product.Id, w.Product.Title, w.Product.ImageUrl, w.Product.Price, w.Product.AvgRating }
+        }).ToList();
+
         return Ok(items);
     }
 
@@ -49,6 +60,25 @@ public class WishlistController : ControllerBase
         _db.Wishlists.Add(w);
         await _db.SaveChangesAsync();
         _logger.LogInformation("User {UserId} added product {ProductId} to wishlist", uid.Value, productId);
+
+        // invalidate recommendations cache for affected users (current user + users who have this product in wishlist)
+        try
+        {
+            var affected = await _db.Wishlists.Where(x => x.ProductId == productId).Select(x => x.UserId).Distinct().ToListAsync();
+            foreach (var u in affected)
+            {
+                var key = $"recommendations:user:{u}";
+                _cache.Remove(key);
+            }
+            // also remove current user's cache key (if not included)
+            var meKey = $"recommendations:user:{uid.Value}";
+            _cache.Remove(meKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to invalidate recommendations cache after wishlist add");
+        }
+
         return CreatedAtAction(nameof(GetMyWishlist), null);
     }
 
@@ -62,6 +92,24 @@ public class WishlistController : ControllerBase
         _db.Wishlists.Remove(w);
         await _db.SaveChangesAsync();
         _logger.LogInformation("User {UserId} removed product {ProductId} from wishlist", uid.Value, productId);
+
+        // invalidate recommendations cache similarly
+        try
+        {
+            var affected = await _db.Wishlists.Where(x => x.ProductId == productId).Select(x => x.UserId).Distinct().ToListAsync();
+            foreach (var u in affected)
+            {
+                var key = $"recommendations:user:{u}";
+                _cache.Remove(key);
+            }
+            var meKey = $"recommendations:user:{uid.Value}";
+            _cache.Remove(meKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to invalidate recommendations cache after wishlist remove");
+        }
+
         return NoContent();
     }
 }

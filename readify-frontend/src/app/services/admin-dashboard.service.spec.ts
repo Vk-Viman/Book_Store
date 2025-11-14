@@ -25,7 +25,7 @@ describe('AdminDashboardService', () => {
 
   it('should fetch top products', (done) => {
     service.getTopProducts().subscribe((data: any) => { expect(data.length).toBe(1); expect(data[0].productName).toBe('P'); done(); });
-    const req = httpMock.expectOne('/api/admin/top-products');
+    const req = httpMock.expectOne('/api/admin/stats/top-products');
     expect(req.request.method).toBe('GET');
     req.flush([{ productName: 'P', quantitySold: 5 }]);
   });

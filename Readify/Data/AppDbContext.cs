@@ -65,6 +65,8 @@ namespace Readify.Data
                 .HasIndex(p => p.CategoryId);
             modelBuilder.Entity<Product>()
                 .HasIndex(p => p.Price);
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.AvgRating);
 
             modelBuilder.Entity<Order>()
                 .HasMany(o => o.Items)
@@ -124,6 +126,11 @@ namespace Readify.Data
 
             modelBuilder.Entity<Review>()
                 .HasIndex(r => r.ProductId);
+
+            // configure AvgRating precision
+            modelBuilder.Entity<Product>()
+                .Property(p => p.AvgRating)
+                .HasPrecision(3,2);
         }
     }
 }

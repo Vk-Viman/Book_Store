@@ -10,15 +10,16 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmDialogComponent } from '../../components/confirm-dialog.component';
 import { NotificationService } from '../../services/notification.service';
+import { AdminOrderDetailDialogComponent } from './admin-order-detail-dialog.component';
+import { MatChipsModule } from '@angular/material/chips';
 
 @Component({
   selector: 'app-admin-orders',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatButtonModule, MatSelectModule, MatIconModule, MatCardModule, MatInputModule, MatFormFieldModule, MatPaginatorModule, FormsModule, RouterLink, ConfirmDialogComponent],
+  imports: [CommonModule, MatTableModule, MatButtonModule, MatSelectModule, MatIconModule, MatCardModule, MatInputModule, MatFormFieldModule, MatPaginatorModule, FormsModule, ConfirmDialogComponent, MatChipsModule, AdminOrderDetailDialogComponent],
   template: `
     <div class="container mt-4">
       <mat-card>
@@ -36,6 +37,7 @@ import { NotificationService } from '../../services/notification.service';
               <mat-option value="Delivered">Delivered</mat-option>
               <mat-option value="Cancelled">Cancelled</mat-option>
             </mat-select>
+
           </div>
 
           <table mat-table [dataSource]="orders" class="mat-elevation-z8" *ngIf="orders.length>0">
@@ -67,7 +69,10 @@ import { NotificationService } from '../../services/notification.service';
                     <mat-option value="Cancelled">Cancelled</mat-option>
                   </mat-select>
                 </mat-form-field>
-                <div class="mt-1"><small class="text-muted">Payment: {{o.paymentStatus}}</small></div>
+                <div class="mt-1">
+                  <mat-chip role="button" tabindex="0" (click)="filterByStatus(o.orderStatus || o.orderStatusString || o.status)" [ngClass]="getStatusClass(o.orderStatus || o.orderStatusString || o.status)">{{ mapStatusLabel(o.orderStatus || o.orderStatusString || o.status) }}</mat-chip>
+                  <div class="text-muted small">Payment: {{o.paymentStatus}}</div>
+                </div>
               </td>
             </ng-container>
             <ng-container matColumnDef="tx">
@@ -77,7 +82,7 @@ import { NotificationService } from '../../services/notification.service';
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Actions</th>
               <td mat-cell *matCellDef="let o">
-                <button mat-icon-button [routerLink]="['/orders', o.id]" title="View"><mat-icon>open_in_new</mat-icon></button>
+                <button mat-icon-button (click)="openDetail(o)" title="View"><mat-icon>open_in_new</mat-icon></button>
               </td>
             </ng-container>
 
@@ -115,7 +120,29 @@ export class AdminOrdersComponent {
 
   onStatusChange(order: any, newStatus: string) {
     const prev = order.orderStatus;
-    order.orderStatus = newStatus;
-    this.http.put(`/api/admin/orders/${order.id}/status`, { orderStatus: newStatus }).subscribe({ next: () => { this.notify.success('Order status updated'); this.load(); }, error: () => { order.orderStatus = prev; this.notify.error('Failed to update status'); } });
+    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Change Order Status', message: `Change status to ${newStatus}?` } });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) {
+        // revert selection in UI
+        order.orderStatus = prev;
+        return;
+      }
+
+      order.orderStatus = newStatus;
+      this.http.put(`/api/admin/orders/${order.id}/status`, { orderStatus: newStatus }).subscribe({ next: () => { this.notify.success('Order status updated'); this.load(); }, error: () => { order.orderStatus = prev; this.notify.error('Failed to update status'); } });
+    });
   }
+
+  openDetail(o: any) { this.dialog.open(AdminOrderDetailDialogComponent, { data: o }); }
+
+  mapStatusLabel(s: any) { if (!s) return ''; const st = s.toString().split('.').pop(); return st.charAt(0).toUpperCase() + st.slice(1).toLowerCase(); }
+  getStatusClass(s: any) {
+    const st = (s || '').toString().toLowerCase();
+    if (st.includes('pending')) return 'status-pending';
+    if (st.includes('shipped')) return 'status-shipped';
+    if (st.includes('delivered')) return 'status-delivered';
+    return 'status-default';
+  }
+
+  filterByStatus(s: any) { this.filter = this.mapStatusLabel(s); this.pageIndex = 0; this.load(); }
 }

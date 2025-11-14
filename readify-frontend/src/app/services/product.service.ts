@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { lastValueFrom } from 'rxjs';
+import { Subject } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
@@ -9,7 +10,15 @@ export class ProductService {
   private imageCache = new Map<string, { ok: boolean; message?: string; ts: number }>();
   private cacheTtlMs = 1000 * 60 * 5; // 5 minutes
 
+  // notify when products change so UI can refresh
+  private _changed = new Subject<void>();
+  productChanged$ = this._changed.asObservable();
+
   constructor(private http: HttpClient) {}
+
+  notifyChange() {
+    try { this._changed.next(); } catch { }
+  }
 
   getProducts(options?: { q?: string; categoryId?: number; page?: number; pageSize?: number; sort?: string }): Observable<any> {
     let params = new HttpParams();

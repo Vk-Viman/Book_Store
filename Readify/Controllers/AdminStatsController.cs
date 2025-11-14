@@ -33,7 +33,8 @@ public class AdminStatsController : ControllerBase
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60);
                 var totalUsers = await _db.Users.CountAsync();
                 var totalOrders = await _db.Orders.CountAsync();
-                var totalSales = await _db.OrderItems.SumAsync(i => (decimal?)i.UnitPrice * i.Quantity) ?? 0m;
+                // Use Orders.TotalAmount to match analytics revenue computation
+                var totalSales = await _db.Orders.SumAsync(o => (decimal?)o.TotalAmount) ?? 0m;
                 return new DTOs.AdminStatsDto { TotalUsers = totalUsers, TotalOrders = totalOrders, TotalSales = totalSales };
             });
             return Ok(dto);

@@ -20,19 +20,34 @@ namespace Readify.Controllers
         // GET /api/products
         [HttpGet]
         [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, NoStore = false)]
-        public async Task<IActionResult> Get([FromQuery] string? q, [FromQuery] int? categoryId, [FromQuery] string? author, [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? sort = null)
+        public async Task<IActionResult> Get([FromQuery] string? q, [FromQuery] int? categoryId, [FromQuery] int[]? categoryIds, [FromQuery] string? author, [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, [FromQuery] decimal? minRating, [FromQuery] bool? inStock, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? sort = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 5, 100);
 
-            var query = _context.Products.AsQueryable();
+            // include Category so we can search by category name
+            var query = _context.Products.Include(p => p.Category).AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(q))
             {
-                query = query.Where(p => p.Title.Contains(q) || p.Description.Contains(q) || p.Authors.Contains(q) || p.ISBN.Contains(q));
+                // split query into terms (simple tokenization)
+                var terms = q.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+                if (terms.Any())
+                {
+                    foreach (var term in terms)
+                    {
+                        var t = term; // local copy for EF expression
+                        query = query.Where(p => p.Title.Contains(t) || p.Description.Contains(t) || p.Authors.Contains(t) || p.ISBN.Contains(t) || (p.Category != null && p.Category.Name.Contains(t)));
+                    }
+                }
             }
 
-            if (categoryId.HasValue)
+            // category filters: support either single categoryId or multiple categoryIds
+            if (categoryIds != null && categoryIds.Length > 0)
+            {
+                query = query.Where(p => categoryIds.Contains(p.CategoryId));
+            }
+            else if (categoryId.HasValue)
             {
                 query = query.Where(p => p.CategoryId == categoryId.Value);
             }
@@ -44,6 +59,16 @@ namespace Readify.Controllers
 
             if (minPrice.HasValue) query = query.Where(p => p.Price >= minPrice.Value);
             if (maxPrice.HasValue) query = query.Where(p => p.Price <= maxPrice.Value);
+
+            if (minRating.HasValue)
+            {
+                query = query.Where(p => (p.AvgRating ?? 0m) >= minRating.Value);
+            }
+
+            if (inStock.HasValue && inStock.Value)
+            {
+                query = query.Where(p => p.StockQty > 0);
+            }
 
             var total = await query.CountAsync();
 
@@ -71,13 +96,15 @@ namespace Readify.Controllers
                 ReleaseDate = p.ReleaseDate,
                 Price = p.Price,
                 StockQty = p.StockQty,
+                InitialStock = p.InitialStock,
                 CategoryId = p.CategoryId,
                 CategoryName = p.Category?.Name ?? string.Empty,
                 ImageUrl = p.ImageUrl,
                 Language = p.Language,
                 Format = p.Format,
                 CreatedAt = p.CreatedAt,
-                UpdatedAt = p.UpdatedAt
+                UpdatedAt = p.UpdatedAt,
+                AvgRating = p.AvgRating
             }).ToList();
 
             var totalPages = (int)Math.Ceiling(total / (double)pageSize);
@@ -103,13 +130,15 @@ namespace Readify.Controllers
                 ReleaseDate = product.ReleaseDate,
                 Price = product.Price,
                 StockQty = product.StockQty,
+                InitialStock = product.InitialStock,
                 CategoryId = product.CategoryId,
                 CategoryName = product.Category?.Name ?? string.Empty,
                 ImageUrl = product.ImageUrl,
                 Language = product.Language,
                 Format = product.Format,
                 CreatedAt = product.CreatedAt,
-                UpdatedAt = product.UpdatedAt
+                UpdatedAt = product.UpdatedAt,
+                AvgRating = product.AvgRating
             };
 
             return Ok(dto);

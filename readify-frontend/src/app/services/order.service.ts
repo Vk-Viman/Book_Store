@@ -36,6 +36,10 @@ export class OrderService {
     return this.http.get<OrderDetailDto>(`/api/orders/${id}`);
   }
 
+  getOrderHistory(id: number): Observable<any[]> {
+    return this.http.get<any[]>(`/api/orders/${id}/history`);
+  }
+
   checkout(payload: any): Observable<OrderDetailDto> {
     return this.http.post<OrderDetailDto>('/api/orders/checkout', payload);
   }

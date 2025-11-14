@@ -22,6 +22,9 @@ export const routes: Routes = [
   { path: 'profile', loadComponent: () => import('./pages/profile/profile.component').then(m => m.ProfileComponent), canActivate: [authGuard] },
   { path: 'checkout', loadComponent: () => import('./pages/checkout/checkout.component').then(m => m.CheckoutComponent), canActivate: [authGuard] },
 
+  // Wishlist
+  { path: 'wishlist', loadComponent: () => import('./pages/wishlist/wishlist.component').then(m => m.WishlistComponent), canActivate: [authGuard] },
+
   // Admin area
   { path: 'admin/dashboard', loadComponent: () => import('./pages/admin/admin-dashboard.component').then(m => m.AdminDashboardComponent), canActivate: [adminGuard] },
   { path: 'admin/orders', loadComponent: () => import('./pages/admin/admin-orders.component').then(m => m.AdminOrdersComponent), canActivate: [adminGuard] },
@@ -33,6 +36,7 @@ export const routes: Routes = [
   { path: 'admin/promos/new', loadComponent: () => import('./pages/admin/promo-form.component').then(m => m.AdminPromoFormComponent), canActivate: [adminGuard] },
   { path: 'admin/promos/:id', loadComponent: () => import('./pages/admin/promo-edit.component').then(m => m.AdminPromoEditComponent), canActivate: [adminGuard] },
   { path: 'admin/shipping', loadComponent: () => import('./pages/admin/shipping-form.component').then(m => m.AdminShippingFormComponent), canActivate: [adminGuard] },
+  { path: 'admin/reviews', loadComponent: () => import('./pages/admin/admin-reviews.component').then(m => m.AdminReviewsComponent), canActivate: [adminGuard] },
 
   { path: '**', redirectTo: 'home' }
 ];

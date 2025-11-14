@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { ConfirmDialogComponent } from '../../components/confirm-dialog.component';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-admin-promo-list',
@@ -32,7 +35,7 @@ import { RouterLink } from '@angular/router';
           <td>{{ p.isActive }}</td>
           <td>
             <a class="btn btn-sm btn-outline-primary me-2" [routerLink]="['/admin/promos', p.id]">Edit</a>
-            <button class="btn btn-danger btn-sm" (click)="delete(p.id)">Delete</button>
+            <button class="btn btn-danger btn-sm" (click)="confirmDelete(p.id)">Delete</button>
           </td>
         </tr>
       </tbody>
@@ -56,7 +59,7 @@ export class AdminPromoListComponent {
   totalPages = 0;
   pages: number[] = [];
 
-  constructor(private http: HttpClient) { this.load(); }
+  constructor(private http: HttpClient, private dialog: MatDialog, private notify: NotificationService) { this.load(); }
 
   load() {
     let params = new HttpParams().set('page', String(this.page)).set('pageSize', String(this.pageSize));
@@ -65,10 +68,18 @@ export class AdminPromoListComponent {
       this.promos = res.items || res;
       this.totalPages = res.totalPages || 1;
       this.pages = Array.from({ length: this.totalPages }, (_, i) => i + 1);
+    }, (err) => {
+      this.notify.error(err?.error?.message || 'Failed to load promos');
     });
   }
 
   goto(p: number) { if (p < 1 || p > this.totalPages) return; this.page = p; this.load(); }
 
-  delete(id: number) { if (!confirm('Delete promo?')) return; this.http.delete(`/api/admin/promos/${id}`).subscribe(() => this.load()); }
+  confirmDelete(id: number) {
+    const ref = this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete promo', message: 'Delete this promo? This action cannot be undone.' } });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.http.delete(`/api/admin/promos/${id}`).subscribe({ next: () => { this.notify.success('Promo deleted'); this.load(); }, error: (err) => { this.notify.error(err?.error?.message || 'Failed to delete promo'); } });
+    });
+  }
 }

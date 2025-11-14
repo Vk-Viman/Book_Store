@@ -208,6 +208,35 @@ namespace Readify.Migrations
                     b.ToTable("Orders");
                 });
 
+            modelBuilder.Entity("Readify.Models.OrderHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OldStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.ToTable("OrderHistories");
+                });
+
             modelBuilder.Entity("Readify.Models.OrderItem", b =>
                 {
                     b.Property<int>("Id")
@@ -278,6 +307,10 @@ namespace Readify.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal?>("AvgRating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("decimal(3,2)");
+
                     b.Property<int>("CategoryId")
                         .HasColumnType("int");
 
@@ -302,6 +335,9 @@ namespace Readify.Migrations
                     b.Property<string>("ImageUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("InitialStock")
+                        .HasColumnType("int");
 
                     b.Property<string>("Language")
                         .IsRequired()
@@ -333,6 +369,8 @@ namespace Readify.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AvgRating");
 
                     b.HasIndex("CategoryId");
 
@@ -405,6 +443,40 @@ namespace Readify.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("Readify.Models.Review", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("Reviews");
                 });
 
             modelBuilder.Entity("Readify.Models.ShippingSetting", b =>
@@ -506,6 +578,26 @@ namespace Readify.Migrations
                     b.ToTable("UserProfileUpdates");
                 });
 
+            modelBuilder.Entity("Readify.Models.Wishlist", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnOrder(0);
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int")
+                        .HasColumnOrder(1);
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("Wishlists");
+                });
+
             modelBuilder.Entity("Readify.Models.CartItem", b =>
                 {
                     b.HasOne("Readify.Models.Product", "Product")
@@ -574,6 +666,17 @@ namespace Readify.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Readify.Models.Wishlist", b =>
+                {
+                    b.HasOne("Readify.Models.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("Readify.Models.Category", b =>

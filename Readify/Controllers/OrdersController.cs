@@ -240,8 +240,8 @@ public class OrdersController : ControllerBase
                     PaymentStatus = paymentSucceeded ? "Paid" : "Pending",
                 };
 
-                // set initial order lifecycle status as Processing
-                order.OrderStatus = OrderStatus.Processing;
+                // set initial order lifecycle status as Pending
+                order.OrderStatus = OrderStatus.Pending;
                 order.OrderStatusString = order.OrderStatus.ToString();
                 order.PaymentTransactionId = paymentTxId;
 
@@ -294,6 +294,17 @@ public class OrdersController : ControllerBase
                         {
                             _logger.LogWarning(ex, "Failed to read product {ProductId} after checkout", c.ProductId);
                         }
+                    }
+
+                    // record initial created history entry (so timeline always shows Created)
+                    try
+                    {
+                        _context.OrderHistories.Add(new OrderHistory { OrderId = order.Id, OldStatus = string.Empty, NewStatus = order.OrderStatusString, Timestamp = order.OrderDate });
+                        await _context.SaveChangesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to write order history for created event for order {OrderId}", order.Id);
                     }
 
                     await tx.CommitAsync();
