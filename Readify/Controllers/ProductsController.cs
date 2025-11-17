@@ -112,7 +112,7 @@ namespace Readify.Controllers
         }
 
         // GET /api/products/{id}
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, NoStore = false)]
         public async Task<IActionResult> GetById(int id)
         {
@@ -145,7 +145,7 @@ namespace Readify.Controllers
         }
 
         // GET /api/products/{id}/similar
-        [HttpGet("{id}/similar")]
+        [HttpGet("{id:int}/similar")]
         [ResponseCache(Duration = 120, Location = ResponseCacheLocation.Any, NoStore = false)]
         public async Task<IActionResult> GetSimilar(int id, [FromQuery] int take = 20)
         {
