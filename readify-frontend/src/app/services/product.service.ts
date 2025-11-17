@@ -1,14 +1,19 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { lastValueFrom } from 'rxjs';
 import { Subject } from 'rxjs';
+import { tap } from 'rxjs/operators';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
   private base = '/api';
   private imageCache = new Map<string, { ok: boolean; message?: string; ts: number }>();
   private cacheTtlMs = 1000 * 60 * 5; // 5 minutes
+
+  // cache for similar requests
+  private similarCache = new Map<string, { data: any; ts: number }>();
+  private similarTtlMs = 1000 * 60 * 5; // 5 minutes
 
   // notify when products change so UI can refresh
   private _changed = new Subject<void>();
@@ -54,6 +59,26 @@ export class ProductService {
 
   createCategory(name: string): Observable<any> {
     return this.http.post(`${this.base}/admin/categories`, { name });
+  }
+
+  // NEW: trending products
+  getTrending(take: number = 20): Observable<any> {
+    let params = new HttpParams().set('take', String(take));
+    return this.http.get(`${this.base}/products/trending`, { params });
+  }
+
+  // NEW: similar products for a given id
+  getSimilar(id: number, take: number = 12): Observable<any> {
+    const key = `${id}:${take}`;
+    const now = Date.now();
+    const cached = this.similarCache.get(key);
+    if (cached && (now - cached.ts) < this.similarTtlMs) {
+      return of(cached.data);
+    }
+    let params = new HttpParams().set('take', String(take));
+    return this.http.get(`${this.base}/products/${id}/similar`, { params }).pipe(
+      tap(res => this.similarCache.set(key, { data: res, ts: Date.now() }))
+    );
   }
 
   // Validate image URL using backend endpoint with caching

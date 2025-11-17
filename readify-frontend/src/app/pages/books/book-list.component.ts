@@ -127,6 +127,7 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
 
   products: any[] = [];
   recommendations: any[] = [];
+  trending: any[] = [];
   categories: any[] = [];
   authors: string[] = [];
   q = '';
@@ -448,6 +449,8 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
         // If server returned empty, try public endpoint as a safety net
         if (!this.recommendations || this.recommendations.length === 0) {
           this.recSvc.getPublic().subscribe({ next: (pub: any) => { this.recommendations = (pub?.items || []); console.debug('Recommendations (from public):', this.recommendations); }, error: () => { /* allow product fallback below */ } });
+        } else {
+          this.loadTrending();
         }
       },
       error: (err: any) => {
@@ -455,6 +458,10 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
         this.recSvc.getPublic().subscribe({ next: (pub: any) => { this.recommendations = (pub?.items || []); console.debug('Recommendations (from public):', this.recommendations); }, error: (e) => { console.warn('Public recommendations failed; falling back to newest books', e); this.bookService.getBooks({ pageSize: 8, sort: 'newest' }).subscribe({ next: (r:any) => { this.recommendations = (r.items || []).map((it:any) => ({ id: it.id, title: it.title, imageUrl: it.imageUrl, price: it.price })); }, error: () => { this.recommendations = []; } }); } });
       }
     });
+  }
+
+  private loadTrending() {
+    this.productService.getTrending(16).subscribe({ next: (t: any) => { this.trending = t?.items || []; }, error: () => { this.trending = []; } });
   }
 
   private startAutoplay() {

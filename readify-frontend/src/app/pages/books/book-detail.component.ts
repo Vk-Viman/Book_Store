@@ -429,13 +429,20 @@ export class BookDetailComponent implements OnDestroy {
   }
 
   loadRecommendations() {
-    if (!this.isLoggedIn) { this.recItems = []; return; }
-    this.recSvc.getForMe().subscribe({ next: (res: any) => { this.recItems = res.items ?? []; }, error: () => { this.recItems = []; } });
+    if (this.isLoggedIn) {
+      this.recSvc.getForMe().subscribe({ next: (res: any) => { this.recItems = res.items ?? []; if (!this.recItems.length && this.id) this.loadSimilarFallback(); }, error: () => { this.recItems = []; if (this.id) this.loadSimilarFallback(); } });
+    } else {
+      // not logged in: use similar fallback directly
+      this.loadSimilarFallback();
+    }
+  }
+  private loadSimilarFallback() {
+    if (!this.id) return; this.productService.getSimilar(this.id, 12).subscribe({ next: (r: any) => { this.recItems = r?.items || []; }, error: () => { this.recItems = []; } });
   }
 
   refreshRecommendations() {
-    if (!this.isLoggedIn) return;
-    this.recSvc.refreshForMe().subscribe({ next: (res: any) => { this.recItems = res.items ?? []; this.notify.success('Recommendations refreshed'); }, error: () => { this.notify.error('Failed to refresh recommendations'); } });
+    if (!this.isLoggedIn) { this.loadSimilarFallback(); return; }
+    this.recSvc.refreshForMe().subscribe({ next: (res: any) => { this.recItems = res.items ?? []; if (!this.recItems.length) this.loadSimilarFallback(); this.notify.success('Recommendations refreshed'); }, error: () => { this.notify.error('Failed to refresh recommendations'); } });
   }
 
   submitReview() {

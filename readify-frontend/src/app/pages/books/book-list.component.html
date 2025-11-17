@@ -104,6 +104,31 @@
         <div class="rec-nav right" (click)="scrollRecsRight()"><mat-icon>chevron_right</mat-icon></div>
       </div>
 
+      <!-- Trending Now Section -->
+      <div class="mt-4" *ngIf="trending?.length">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">🔥 Trending Now</h5>
+          <small class="text-muted">Based on sales, wishlists & ratings</small>
+        </div>
+        <div class="d-flex flex-row gap-3 overflow-auto pb-2">
+          <mat-card *ngFor="let t of trending" class="rec-card" style="min-width:180px" (click)="gotoProduct(t.id)">
+            <img [src]="t.imageUrl || 'assets/book-placeholder.svg'" class="rec-image" alt="{{t.title}}" />
+            <mat-card-content>
+              <div class="rec-title">{{ t.title }}</div>
+              <div class="rec-price text-muted">{{ t.price | currency }}</div>
+              <div class="rating" *ngIf="t.avgRating">
+                <ng-container *ngFor="let i of [1,2,3,4,5]; let idx = index">
+                  <mat-icon color="accent">{{ (t.avgRating >= (idx+1) ? 'star' : (t.avgRating >= (idx+0.5) ? 'star_half' : 'star_border')) }}</mat-icon>
+                </ng-container>
+              </div>
+            </mat-card-content>
+            <mat-card-actions>
+              <a [routerLink]="['/books', t.id]" class="btn btn-sm btn-primary">View</a>
+            </mat-card-actions>
+          </mat-card>
+        </div>
+      </div>
+
       <div *ngIf="loading">
         <app-loading-skeleton type="card"></app-loading-skeleton>
       </div>

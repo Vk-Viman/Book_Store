@@ -1,0 +1,1 @@
+This file marks that Trending Now section was inserted into the Angular template book-list.component.html just after the recommendations carousel. If further style changes are needed, adjust rec-card and rec-image CSS in the component styles.

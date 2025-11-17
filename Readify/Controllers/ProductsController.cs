@@ -143,5 +143,105 @@ namespace Readify.Controllers
 
             return Ok(dto);
         }
+
+        // GET /api/products/{id}/similar
+        [HttpGet("{id}/similar")]
+        [ResponseCache(Duration = 120, Location = ResponseCacheLocation.Any, NoStore = false)]
+        public async Task<IActionResult> GetSimilar(int id, [FromQuery] int take = 20)
+        {
+            var prod = await _context.Products.FirstOrDefaultAsync(p => p.Id == id);
+            if (prod == null) return NotFound(new { message = "Product not found" });
+            take = Math.Clamp(take, 1, 50);
+
+            // Same category (exclude itself)
+            var sameCategory = _context.Products.Where(p => p.CategoryId == prod.CategoryId && p.Id != prod.Id);
+            // Same authors (exact match; could be improved to token match)
+            var sameAuthors = _context.Products.Where(p => p.Authors == prod.Authors && p.Id != prod.Id);
+            // High rating (>=4) exclude itself
+            var highRating = _context.Products.Where(p => (p.AvgRating ?? 0m) >= 4m && p.Id != prod.Id);
+
+            // Union distinct by id
+            var candidates = await sameCategory
+                .Union(sameAuthors)
+                .Union(highRating)
+                .Distinct()
+                .Take(200) // limit before scoring
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Title,
+                    p.ImageUrl,
+                    p.Price,
+                    p.AvgRating,
+                    p.CategoryId,
+                    p.Authors
+                }).ToListAsync();
+
+            // Simple scoring: +3 if same category, +2 if same authors, + (avgRating or 0)
+            var scored = candidates.Select(c => new
+            {
+                c.Id,
+                c.Title,
+                c.ImageUrl,
+                c.Price,
+                c.AvgRating,
+                Score = (c.CategoryId == prod.CategoryId ? 3 : 0) + (c.Authors == prod.Authors ? 2 : 0) + (double)(c.AvgRating ?? 0m)
+            })
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Title)
+            .Take(take)
+            .ToList();
+
+            return Ok(new { items = scored });
+        }
+
+        // GET /api/products/trending
+        [HttpGet("trending")]
+        [ResponseCache(Duration = 180, Location = ResponseCacheLocation.Any, NoStore = false)]
+        public async Task<IActionResult> GetTrending([FromQuery] int take = 20)
+        {
+            take = Math.Clamp(take, 1, 50);
+
+            // Sold quantities (OrderItems)
+            var sold = await _context.OrderItems
+                .GroupBy(oi => oi.ProductId)
+                .Select(g => new { ProductId = g.Key, Qty = g.Sum(x => x.Quantity) })
+                .ToListAsync();
+            var soldLookup = sold.ToDictionary(x => x.ProductId, x => x.Qty);
+
+            // Wishlist counts
+            var wish = await _context.Wishlists
+                .GroupBy(w => w.ProductId)
+                .Select(g => new { ProductId = g.Key, Count = g.Count() })
+                .ToListAsync();
+            var wishLookup = wish.ToDictionary(x => x.ProductId, x => x.Count);
+
+            // Load product baseline data for candidates (union of sold + wish + high rated)
+            var candidateIds = soldLookup.Keys
+                .Union(wishLookup.Keys)
+                .Union(await _context.Products.Where(p => (p.AvgRating ?? 0m) >= 4m).Select(p => p.Id).ToListAsync())
+                .ToList();
+            if (!candidateIds.Any()) return Ok(new { items = Array.Empty<object>() });
+
+            var products = await _context.Products.Where(p => candidateIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Title, p.ImageUrl, p.Price, p.AvgRating })
+                .ToListAsync();
+
+            var scored = products.Select(p => new
+            {
+                p.Id,
+                p.Title,
+                p.ImageUrl,
+                p.Price,
+                p.AvgRating,
+                Score = (soldLookup.ContainsKey(p.Id) ? soldLookup[p.Id] * 2.0 : 0.0) + (wishLookup.ContainsKey(p.Id) ? wishLookup[p.Id] * 1.0 : 0.0) + (double)(p.AvgRating ?? 0m) * 3.0
+            })
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Title)
+            .Take(take)
+            .ToList();
+
+            return Ok(new { items = scored });
+        }
     }
 }
