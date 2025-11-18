@@ -1,5 +1,12 @@
 namespace Readify.DTOs
 {
+    public class ProductImageDto
+    {
+        public int Id { get; set; }
+        public string ImageUrl { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
+    }
+
     public class ProductDto
     {
         public int Id { get; set; }
@@ -20,5 +27,6 @@ namespace Readify.DTOs
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public decimal? AvgRating { get; set; }
+        public List<ProductImageDto> Images { get; set; } = new();
     }
 }

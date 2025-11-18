@@ -18,6 +18,7 @@ namespace Readify.DTOs
         public DateTime CreatedAt { get; set; }
         public string Status { get; set; } = string.Empty;
         public decimal Total { get; set; }
+        public string? PromoCode { get; set; }
     }
 
     public class OrderDetailDto : OrderSummaryDto

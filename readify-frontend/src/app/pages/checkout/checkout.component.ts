@@ -68,12 +68,19 @@ import { LoadingSkeletonComponent } from '../../components/loading-skeleton.comp
               </div>
             </div>
 
-            <div class="mt-2 d-flex justify-content-between"><div>Subtotal</div><div>{{ formatCurrency(rawTotal) }}</div></div>
+            <div class="mt-2 d-flex justify-content-between">
+              <div>Subtotal</div>
+              <div>
+                <span [class.text-decoration-line-through]="hasDiscount">{{ formatCurrency(rawTotal) }}</span>
+                <span *ngIf="hasDiscount" class="ms-2 text-success">{{ formatCurrency(rawTotal - discountAmount) }}</span>
+              </div>
+            </div>
             <div class="d-flex justify-content-between" *ngIf="discountAmount > 0"><div>Discount {{ promoValidMessage }}</div><div>-{{ formatCurrency(discountAmount) }}</div></div>
             <div class="d-flex justify-content-between" *ngIf="promoType === 'FreeShipping'"><div>Shipping</div><div class="text-success">Free</div></div>
             <div class="d-flex justify-content-between" *ngIf="promoType !== 'FreeShipping'"><div>Shipping</div><div>{{ formatCurrency(shippingRate) }}</div></div>
             <hr />
             <div class="d-flex justify-content-between"><div><strong>Total</strong></div><div><strong>{{ formatCurrency(discountedTotal) }}</strong></div></div>
+            <div *ngIf="projectedTotal !== null" class="mt-2 small text-muted">Projected total with coupon: {{ formatCurrency(projectedTotal) }}</div>
 
             <div class="mt-3 text-end">
               <button class="btn btn-primary" [disabled]="processing">Pay (Mock)</button>
@@ -110,10 +117,12 @@ export class CheckoutComponent implements OnInit {
 
   promoType: string | null = null;
   promoFixedAmount: number | null = null;
+  projectedTotal: number | null = null;
 
   rawTotal = 0;
   discountedTotal = 0;
   discountAmount = 0;
+  hasDiscount = false;
 
   items: any[] = [];
   loading = false;
@@ -152,25 +161,22 @@ export class CheckoutComponent implements OnInit {
 
   private computeTotals() {
     const shipping = this.promoType === 'FreeShipping' ? 0 : this.shippingRate;
-
-    // default
+    this.hasDiscount = false;
     this.discountAmount = 0;
 
     if (this.promoValid && this.promoType) {
       if (this.promoType === 'Percentage') {
         const match = this.promoValidMessage.match(/([0-9]+(?:\.[0-9]+)?)/);
         const pct = Number(match?.[1] ?? 0);
-        const discount = Math.round((this.rawTotal * pct) / 100 * 100) / 100;
-        this.discountAmount = discount;
+        this.discountAmount = Math.round((this.rawTotal * pct) / 100 * 100) / 100;
       } else if (this.promoType === 'Fixed') {
         this.discountAmount = this.promoFixedAmount ?? 0;
-      } else if (this.promoType === 'FreeShipping') {
-        this.discountAmount = 0;
       }
+      this.hasDiscount = this.discountAmount > 0;
     }
 
-    // final total = subtotal + shipping - discount (clamped >= 0)
-    this.discountedTotal = Math.max(0, this.rawTotal + shipping - (this.discountAmount ?? 0));
+    const shippingAdj = this.promoType === 'FreeShipping' ? 0 : shipping;
+    this.discountedTotal = Math.max(0, this.rawTotal + shippingAdj - (this.discountAmount ?? 0));
   }
 
   formatCurrency(value: number) {
@@ -178,33 +184,21 @@ export class CheckoutComponent implements OnInit {
   }
 
   validatePromo() {
-    this.promoError = '';
-    this.promoValid = false;
-    this.promoType = null;
-    this.promoFixedAmount = null;
-    const code = (this.promoCode || '').trim();
-    if (!code) { this.promoError = 'Please enter a promo code'; return; }
+    this.promoError = ''; this.promoValid = false; this.promoType = null; this.promoFixedAmount = null;
+    const code = (this.promoCode || '').trim(); if (!code) { this.promoError = 'Please enter a promo code'; return; }
     this.validatingPromo = true;
-    this.http.get<any>(`/api/cart/promo/${encodeURIComponent(code)}`).subscribe({
+    this.http.get<any>(`/api/orders/validate-coupon?code=${encodeURIComponent(code)}&subtotal=${this.rawTotal}`).subscribe({
       next: (res: any) => {
-        this.validatingPromo = false;
-        this.promoValid = true;
-        this.promoType = res?.type ?? 'Percentage';
-        this.promoFixedAmount = res?.fixedAmount ?? null;
-        if (this.promoType === 'Percentage') {
-          this.promoValidMessage = res?.discountPercent ? `${res.discountPercent}% off` : 'Promo applied';
-        } else if (this.promoType === 'Fixed') {
-          this.promoValidMessage = res?.fixedAmount ? `${res.fixedAmount} off` : 'Promo applied';
-        } else if (this.promoType === 'FreeShipping') {
-          this.promoValidMessage = 'Free shipping';
-        }
+        this.validatingPromo = false; this.promoValid = true; this.promoType = res?.type ?? 'Percentage'; this.promoFixedAmount = res?.fixedAmount ?? null;
+        if (this.promoType === 'Percentage') this.promoValidMessage = res?.discountPercent ? `${res.discountPercent}% off` : 'Promo applied';
+        else if (this.promoType === 'Fixed') this.promoValidMessage = res?.fixedAmount ? `${res.fixedAmount} off` : 'Promo applied';
+        else if (this.promoType === 'FreeShipping') this.promoValidMessage = 'Free shipping';
+        // use server provided discountAmount if present for accuracy
+        if (typeof res?.discountAmount === 'number') this.discountAmount = res.discountAmount;
+        this.projectedTotal = typeof res?.projectedTotal === 'number' ? res.projectedTotal : null;
         this.computeTotals();
       },
-      error: (err: any) => {
-        this.validatingPromo = false;
-        this.promoError = err?.error?.message || 'Invalid promo code';
-        this.computeTotals();
-      }
+      error: (err: any) => { this.validatingPromo = false; this.promoError = err?.error?.message || 'Invalid promo code'; this.computeTotals(); }
     });
   }
 

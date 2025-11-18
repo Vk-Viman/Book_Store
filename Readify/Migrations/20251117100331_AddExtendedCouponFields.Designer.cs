@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Readify.Data;
 
@@ -11,9 +12,11 @@ using Readify.Data;
 namespace Readify.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251117100331_AddExtendedCouponFields")]
+    partial class AddExtendedCouponFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -385,32 +388,6 @@ namespace Readify.Migrations
                     b.ToTable("Product");
                 });
 
-            modelBuilder.Entity("Readify.Models.ProductImage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ImageUrl")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId", "SortOrder");
-
-                    b.ToTable("ProductImages");
-                });
-
             modelBuilder.Entity("Readify.Models.PromoCode", b =>
                 {
                     b.Property<int>("Id")
@@ -728,17 +705,6 @@ namespace Readify.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("Readify.Models.ProductImage", b =>
-                {
-                    b.HasOne("Readify.Models.Product", "Product")
-                        .WithMany("Images")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("Readify.Models.RefreshToken", b =>
                 {
                     b.HasOne("Readify.Models.User", "User")
@@ -771,11 +737,6 @@ namespace Readify.Migrations
             modelBuilder.Entity("Readify.Models.Order", b =>
                 {
                     b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("Readify.Models.Product", b =>
-                {
-                    b.Navigation("Images");
                 });
 #pragma warning restore 612, 618
         }

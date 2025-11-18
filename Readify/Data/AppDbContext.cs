@@ -23,6 +23,8 @@ namespace Readify.Data
         public DbSet<Wishlist> Wishlists { get; set; }
         public DbSet<OrderHistory> OrderHistories { get; set; }
         public DbSet<Review> Reviews { get; set; }
+        public DbSet<PromoCodeUsage> PromoCodeUsages { get; set; }
+        public DbSet<ProductImage> ProductImages { get; set; }
         // Alias for readability: treat products as books in the app domain
         public DbSet<Product> Books => Products;
 
@@ -39,6 +41,16 @@ namespace Readify.Data
                 .HasMany(c => c.Products)
                 .WithOne(p => p.Category)
                 .HasForeignKey(p => p.CategoryId);
+
+            // Product -> ProductImages mapping
+            modelBuilder.Entity<Product>()
+                .HasMany(p => p.Images)
+                .WithOne(pi => pi.Product)
+                .HasForeignKey(pi => pi.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProductImage>()
+                .HasIndex(pi => new { pi.ProductId, pi.SortOrder });
 
             // Ensure Price uses decimal(18,2) in SQL Server to avoid truncation
             modelBuilder.Entity<Product>()
@@ -131,6 +143,19 @@ namespace Readify.Data
             modelBuilder.Entity<Product>()
                 .Property(p => p.AvgRating)
                 .HasPrecision(3,2);
+
+            modelBuilder.Entity<Order>()
+                .Property(o => o.OriginalTotal)
+                .HasPrecision(18,2);
+
+            modelBuilder.Entity<PromoCodeUsage>()
+                .HasIndex(u => new { u.PromoCodeId, u.UserId });
+            modelBuilder.Entity<PromoCodeUsage>()
+                .HasIndex(u => u.PromoCodeId);
+
+            modelBuilder.Entity<PromoCode>()
+                .Property(p => p.MinPurchase)
+                .HasColumnType("decimal(18,2)");
         }
     }
 }

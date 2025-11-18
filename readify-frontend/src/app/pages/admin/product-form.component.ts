@@ -11,11 +11,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { ValidationSummaryComponent } from '../../components/validation-summary.component';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 
 @Component({
   selector: 'app-admin-product-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, ValidationSummaryComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, MatFormFieldModule, MatInputModule, MatButtonModule, ValidationSummaryComponent, DragDropModule],
   template: `
   <div class="container mt-4">
     <h3>{{ isNew ? 'Create' : 'Edit' }} Product</h3>
@@ -27,7 +28,7 @@ import { ValidationSummaryComponent } from '../../components/validation-summary.
           <div class="spinner-border spinner-border-sm text-secondary" role="status"><span class="visually-hidden">Validating...</span></div>
         </div>
       </div>
-      <small class="text-muted">Image preview</small>
+      <small class="text-muted">Main image preview</small>
       <div *ngIf="errorMsg" class="alert alert-danger mt-2">{{ errorMsg }}</div>
       <div *ngIf="validationInfo" class="alert alert-info mt-2">{{ validationInfo }}</div>
     </div>
@@ -72,13 +73,32 @@ import { ValidationSummaryComponent } from '../../components/validation-summary.
       </div>
 
       <div class="mb-3">
-        <label>Image URL</label>
+        <label>Main Image URL</label>
         <input class="form-control" formControlName="imageUrl" (input)="onImageUrlChange()" />
       </div>
 
       <div class="mb-3">
-        <label>Or upload image</label>
+        <label>Or upload main image</label>
         <input type="file" class="form-control" (change)="onFileSelected($event)" accept="image/*" />
+      </div>
+
+      <!-- Gallery management (only for existing product) -->
+      <div *ngIf="!isNew" class="mb-4">
+        <h5>Gallery Images</h5>
+        <input type="file" class="form-control" (change)="onGalleryFilesSelected($event)" accept="image/*" multiple />
+        <small class="text-muted">Upload multiple images. Drag to reorder.</small>
+        <div class="mt-3" *ngIf="gallery.length === 0">
+          <div class="gallery-empty">No gallery images yet.</div>
+        </div>
+        <div class="mt-3" cdkDropList (cdkDropListDropped)="onReorder($event)" *ngIf="gallery.length > 0">
+          <div class="d-flex flex-wrap gap-2">
+            <div class="position-relative" *ngFor="let g of gallery; let idx = index" cdkDrag>
+              <img [src]="toAbs(g.imageUrl)" class="img-thumbnail" style="width:110px;height:140px;object-fit:cover" (error)="onImgError($event)" />
+              <button type="button" class="btn btn-sm btn-danger position-absolute" style="top:4px; right:4px" (click)="removeImage(g)">×</button>
+              <div class="badge bg-light text-dark position-absolute" style="bottom:4px; left:4px">{{idx+1}}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving || validating">{{ saving ? 'Saving...' : 'Save' }}</button>
@@ -104,11 +124,10 @@ export class AdminProductFormComponent {
   newCategoryName = '';
   saving = false;
   validating = false;
-
   isNew = true;
-
-  // new property for template validation summary
   errors: string[] = [];
+
+  gallery: { id: number; imageUrl: string; sortOrder: number }[] = [];
 
   constructor(private fb: FormBuilder, private prodSvc: ProductService, private http: HttpClient, private route: ActivatedRoute, private router: Router, private notify: NotificationService) {
     this.form = this.fb.group({
@@ -138,178 +157,33 @@ export class AdminProductFormComponent {
     this.loadCategories();
   }
 
-  private ensureAbsolute(url: string): string {
-    if (!url) return url;
-    if (/^https?:\/\//i.test(url)) return url;
-    const apiBase = environment.apiUrl.replace(/\/?api\/?$/i, '');
-    return apiBase + (url.startsWith('/') ? url : '/' + url);
-  }
+  toAbs(url: string){ if(!url) return url; if(/^https?:\/\//i.test(url)) return url; const apiBase = environment.apiUrl.replace(/\/?api\/?$/i,''); return apiBase + (url.startsWith('/')?url:'/'+url); }
+  private ensureAbsolute(url: string): string { return this.toAbs(url); }
 
-  onImageUrlChange() {
-    const url = (this.form.value.imageUrl || '').trim();
-    this.previewUrl = this.ensureAbsolute(url) || null;
-  }
+  onImageUrlChange(){ const url=(this.form.value.imageUrl||'').trim(); this.previewUrl=this.ensureAbsolute(url)||null; }
 
-  load(id: number) {
-    this.prodSvc.getProduct(id).subscribe((res: any) => {
-      this.form.patchValue(res);
-      // set preview to loaded image url
-      this.previewUrl = this.ensureAbsolute(res?.imageUrl || '');
-    });
-  }
+  load(id: number){ this.prodSvc.getAdminProduct(id).subscribe((res:any)=>{ this.form.patchValue(res); this.previewUrl=this.ensureAbsolute(res?.imageUrl||''); this.gallery=(res?.images||[]).map((x:any)=>({id:x.id,imageUrl:x.imageUrl,sortOrder:x.sortOrder})); }); }
 
-  loadCategories() {
-    this.prodSvc.getCategories().subscribe({ next: (res: any) => { this.categories = res; }, error: (err) => { console.error('Failed to load categories', err); this.categories = []; } });
-  }
+  loadCategories(){ this.prodSvc.getCategories().subscribe({ next:(res:any)=>{ this.categories=res; }, error:()=>{ this.categories=[]; } }); }
 
-  onImgError(event: Event) {
-    const img = event?.target as HTMLImageElement | null;
-    if (img) img.src = 'assets/book-placeholder.svg';
-  }
+  onImgError(ev:Event){ const img=ev.target as HTMLImageElement|null; if(img) img.src='assets/book-placeholder.svg'; }
 
-  onCategoryChange(value: any) {
-    if (value === 'add') {
-      this.showNewCategoryInput = true;
-      this.form.patchValue({ categoryId: 0 });
-    } else {
-      this.showNewCategoryInput = false;
-      const id = Number(value) || 0;
-      this.form.patchValue({ categoryId: id });
-    }
-  }
+  onCategoryChange(value:any){ if(value==='add'){ this.showNewCategoryInput=true; this.form.patchValue({categoryId:0}); } else { this.showNewCategoryInput=false; this.form.patchValue({categoryId:Number(value)||0}); } }
 
-  createCategory() {
-    const name = (this.newCategoryName || '').trim();
-    if (!name) return;
-    this.prodSvc.createCategory(name).subscribe({
-      next: (res: any) => {
-        // add to local list and select
-        this.categories.push(res);
-        this.form.patchValue({ categoryId: res.id });
-        this.previewUrl = null;
-        this.newCategoryName = '';
-        this.showNewCategoryInput = false;
-        this.notify.success('Category created');
-      },
-      error: (err) => {
-        this.notify.error(err?.error?.message || 'Failed to create category');
-      }
-    });
-  }
+  createCategory(){ const name=(this.newCategoryName||'').trim(); if(!name) return; this.prodSvc.createCategory(name).subscribe({ next:(res:any)=>{ this.categories.push(res); this.form.patchValue({categoryId:res.id}); this.newCategoryName=''; this.showNewCategoryInput=false; this.notify.success('Category created'); }, error:()=>this.notify.error('Failed to create category') }); }
 
-  onFileSelected(event: any) {
-    const file: File | undefined = event?.target?.files?.[0];
-    if (!file) return;
+  onFileSelected(event:any){ const file:File|undefined=event?.target?.files?.[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ this.previewUrl=reader.result as string; }; reader.readAsDataURL(file); const formData=new FormData(); formData.append('file',file); this.validating=true; this.http.post('/api/upload/image',formData).subscribe({ next:(res:any)=>{ this.validating=false; let url=this.ensureAbsolute(res?.url||''); if(url){ this.form.patchValue({imageUrl:url}); this.previewUrl=url; this.notify.success('Image uploaded'); } }, error:()=>{ this.validating=false; this.errorMsg='Image upload failed'; this.notify.error(this.errorMsg); } }); }
 
-    // local preview
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.previewUrl = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+  onGalleryFilesSelected(ev:any){ const files:File[] = Array.from(ev?.target?.files||[]); if(!files.length) return; const id=Number(this.form.value.id); if(!id){ this.notify.info('Save product first to enable gallery.'); return; } this.saving=true; this.prodSvc.uploadProductImages(id, files).subscribe({ next:(res:any)=>{ this.saving=false; this.notify.success('Gallery images uploaded'); this.load(id); }, error:()=>{ this.saving=false; this.notify.error('Failed to upload gallery images'); } }); }
 
-    const form = new FormData();
-    form.append('file', file);
-    this.validating = true;
-    this.http.post('/api/upload/image', form).subscribe({
-      next: (res: any) => {
-        this.validating = false;
-        let url = res?.url as string;
-        url = this.ensureAbsolute(url);
-        if (url) {
-          this.form.patchValue({ imageUrl: url });
-          this.previewUrl = url;
-          this.notify.success('Image uploaded');
-        }
-      },
-      error: (err) => {
-        this.validating = false;
-        const msg = err?.error?.message || 'Image upload failed';
-        this.errorMsg = msg;
-        this.notify.error(msg);
-      }
-    });
-  }
+  removeImage(img:any){ const id=Number(this.form.value.id); if(!id) return; this.prodSvc.deleteProductImage(id,img.id).subscribe({ next:()=>{ this.gallery=this.gallery.filter(g=>g.id!==img.id); this.notify.success('Image removed'); }, error:()=>this.notify.error('Failed to remove image') }); }
 
-  validateImageUrl(url: string): Promise<{ ok: boolean; message?: string }> {
-    return new Promise(async (resolve) => {
-      if (!url) return resolve({ ok: true });
+  onReorder(event:CdkDragDrop<any[]>) { moveItemInArray(this.gallery, event.previousIndex, event.currentIndex); const id=Number(this.form.value.id); this.gallery.forEach((g,idx)=>{ g.sortOrder=idx; this.prodSvc.updateProductImageSort(id,g.id,idx).subscribe({}); }); }
 
-      this.validating = true;
-      const abs = this.ensureAbsolute(url);
-      try {
-        // call backend validation endpoint first
-        const resp: any = await this.http.post('/api/admin/image/validate', { url: abs }).toPromise();
-        if (resp && resp.ok) {
-          this.validating = false;
-          return resolve({ ok: true });
-        }
-        if (resp && resp.message) {
-          this.validating = false;
-          return resolve({ ok: false, message: resp.message });
-        }
-      } catch (e: any) {
-        // fall back to client probe if backend validation fails or returns non-image
-      }
+  validateImageUrl(url:string):Promise<{ok:boolean;message?:string}>{ return new Promise(async resolve=>{ if(!url) return resolve({ok:true}); this.validating=true; const abs=this.ensureAbsolute(url); try{ const resp:any=await this.http.post('/api/admin/image/validate',{url:abs}).toPromise(); if(resp?.ok){ this.validating=false; return resolve({ok:true}); } if(resp?.message){ this.validating=false; return resolve({ok:false,message:resp.message}); } } catch{} const img=new Image(); let done=false; img.onload=()=>{ if(!done){ done=true; this.validating=false; resolve({ok:true}); } }; img.onerror=()=>{ if(!done){ done=true; this.validating=false; resolve({ok:false,message:'Image did not load'}); } }; setTimeout(()=>{ if(!done){ done=true; this.validating=false; resolve({ok:false,message:'Image validation timed out'}); } },5000); img.src=abs; }); }
 
-      const img = new Image();
-      let settled = false;
-      img.onload = () => { if (!settled) { settled = true; this.validating = false; resolve({ ok: true }); } };
-      img.onerror = () => { if (!settled) { settled = true; this.validating = false; resolve({ ok: false, message: 'Image did not load in browser' }); } };
-      setTimeout(() => { if (!settled) { settled = true; this.validating = false; resolve({ ok: false, message: 'Image validation timed out' }); } }, 5000);
-      img.src = abs;
-    });
-  }
-
-  async save() {
-    this.errors = [];
-
-    // client-side validation summary
-    if (this.form.invalid) {
-      if (this.form.get('title')?.hasError('required')) this.errors.push('Title is required');
-      if (this.form.get('price')?.hasError('required')) this.errors.push('Price is required');
-      if (this.form.get('stockQty')?.hasError('required')) this.errors.push('Stock quantity is required');
-      if (this.form.get('categoryId')?.hasError('required') || Number(this.form.value.categoryId) <= 0) this.errors.push('Please select a valid category');
-      // focus first error by setting aria-live or scroll into view - simple approach: notify
-      if (this.errors.length) {
-        this.notify.error('Please fix validation errors');
-        return;
-      }
-    }
-
-    this.saving = true;
-    // trim image url before sending
-    const imageUrl = (this.form.value.imageUrl || '').trim();
-    this.form.patchValue({ imageUrl: this.ensureAbsolute(imageUrl) });
-
-    // Validate category selected
-    const catId = Number(this.form.value.categoryId) || 0;
-    if (catId <= 0) {
-      this.errorMsg = 'Please select a valid category before saving.';
-      this.saving = false;
-      this.notify.info(this.errorMsg);
-      return;
-    }
-
-    if (imageUrl) {
-      this.validationInfo = 'Validating image URL...';
-      const res = await this.validateImageUrl(imageUrl);
-      this.validationInfo = '';
-      if (!res.ok) {
-        this.errorMsg = res.message || 'Image URL did not load as an image.';
-        this.saving = false;
-        this.notify.error(this.errorMsg);
-        return;
-      }
-    }
-
-    this.errorMsg = '';
-
-    if (this.isNew) {
-      this.prodSvc.createProduct(this.form.value).subscribe(() => { this.notify.success('Product created'); try { this.prodSvc.notifyChange(); } catch {} this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to create product'; this.errorMsg = msg; this.notify.error(msg); });
-    } else {
-      const id = this.form.value.id;
-      this.prodSvc.updateProduct(id, this.form.value).subscribe(() => { this.notify.success('Product updated'); try { this.prodSvc.notifyChange(); } catch {} this.router.navigate(['/admin/products']); }, (err) => { this.saving = false; const msg = err?.error?.message ?? 'Failed to update product'; this.errorMsg = msg; this.notify.error(msg); });
-    }
+  async save(){ this.errors=[]; if(this.form.invalid){ if(this.form.get('title')?.hasError('required')) this.errors.push('Title is required'); if(this.form.get('price')?.hasError('required')) this.errors.push('Price is required'); if(this.form.get('stockQty')?.hasError('required')) this.errors.push('Stock quantity is required'); if(this.form.get('categoryId')?.hasError('required')||Number(this.form.value.categoryId)<=0) this.errors.push('Select a valid category'); if(this.errors.length){ this.notify.error('Please fix validation errors'); return; } }
+    this.saving=true; const imageUrl=(this.form.value.imageUrl||'').trim(); this.form.patchValue({imageUrl:this.ensureAbsolute(imageUrl)}); const catId=Number(this.form.value.categoryId)||0; if(catId<=0){ this.errorMsg='Select a category.'; this.saving=false; this.notify.info(this.errorMsg); return; } if(imageUrl){ this.validationInfo='Validating image URL...'; const res=await this.validateImageUrl(imageUrl); this.validationInfo=''; if(!res.ok){ this.errorMsg=res.message||'Image URL invalid'; this.saving=false; this.notify.error(this.errorMsg); return; } }
+    this.errorMsg=''; if(this.isNew){ this.prodSvc.createProduct(this.form.value).subscribe(()=>{ this.notify.success('Product created'); this.prodSvc.notifyChange(); this.router.navigate(['/admin/products']); },err=>{ this.saving=false; this.errorMsg=err?.error?.message||'Failed to create'; this.notify.error(this.errorMsg); }); } else { const id=this.form.value.id; this.prodSvc.updateProduct(id,this.form.value).subscribe(()=>{ this.notify.success('Product updated'); this.prodSvc.notifyChange(); this.router.navigate(['/admin/products']); },err=>{ this.saving=false; this.errorMsg=err?.error?.message||'Failed to update'; this.notify.error(this.errorMsg); }); }
   }
 }

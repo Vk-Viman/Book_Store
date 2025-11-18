@@ -82,6 +82,7 @@ namespace Readify.Controllers
             }
 
             var items = await query.Skip((page - 1) * pageSize).Take(pageSize)
+                .Include(p => p.Images)
                 .Include(p => p.Category)
                 .ToListAsync();
 
@@ -104,7 +105,8 @@ namespace Readify.Controllers
                 Format = p.Format,
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt,
-                AvgRating = p.AvgRating
+                AvgRating = p.AvgRating,
+                Images = p.Images?.OrderBy(i => i.SortOrder).Select(i => new ProductImageDto { Id = i.Id, ImageUrl = i.ImageUrl, SortOrder = i.SortOrder }).ToList() ?? new List<ProductImageDto>()
             }).ToList();
 
             var totalPages = (int)Math.Ceiling(total / (double)pageSize);
@@ -116,7 +118,7 @@ namespace Readify.Controllers
         [ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any, NoStore = false)]
         public async Task<IActionResult> GetById(int id)
         {
-            var product = await _context.Products.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
+            var product = await _context.Products.Include(p => p.Category).Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
             if (product == null) return NotFound();
 
             var dto = new ProductDto
@@ -138,7 +140,8 @@ namespace Readify.Controllers
                 Format = product.Format,
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt,
-                AvgRating = product.AvgRating
+                AvgRating = product.AvgRating,
+                Images = product.Images?.OrderBy(i => i.SortOrder).Select(i => new ProductImageDto { Id = i.Id, ImageUrl = i.ImageUrl, SortOrder = i.SortOrder }).ToList() ?? new List<ProductImageDto>()
             };
 
             return Ok(dto);

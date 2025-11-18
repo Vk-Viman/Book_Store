@@ -18,7 +18,10 @@ import { MatIconModule } from '@angular/material/icon';
   <div class="container mt-4">
     <button class="btn btn-link mb-2" (click)="back()">← Back to orders</button>
     <mat-card *ngIf="order" class="order-detail-card">
-      <mat-card-title>Order #{{ order.id }} — {{ order.createdAt | localDate:'medium' }}</mat-card-title>
+      <mat-card-title>
+        Order #{{ order.id }} — {{ (order.orderDate || order.createdAt) | localDate:'medium' }}
+        <span *ngIf="order.promoCode" class="coupon-chip" title="Coupon applied">{{ order.promoCode }}</span>
+      </mat-card-title>
       <mat-card-subtitle class="mb-2">Status: <strong>{{ displayStatus }}</strong></mat-card-subtitle>
       <mat-card-content class="mt-2">
         <div class="row">
@@ -31,7 +34,12 @@ import { MatIconModule } from '@angular/material/icon';
           <div class="col-md-6 text-md-end mt-3 mt-md-0">
             <h6>Payment</h6>
             <p *ngIf="order.paymentTransactionId"><strong>Transaction:</strong> {{ order.paymentTransactionId }}</p>
-            <p><strong>Total:</strong> {{ order.total | currency }}</p>
+            <div class="pricing">
+              <div *ngIf="order.originalTotal != null" class="small">Subtotal: <span [class.text-decoration-line-through]="(order.discountAmount||0) > 0">{{ order.originalTotal | currency }}</span></div>
+              <div *ngIf="(order.discountAmount||0) > 0" class="small text-success">Discount: -{{ order.discountAmount | currency }} <span *ngIf="order.discountPercent">({{ order.discountPercent }}%)</span></div>
+              <div class="small">Shipping: <span *ngIf="order.freeShipping" class="text-success">Free</span><span *ngIf="!order.freeShipping">{{ order.shippingCost | currency }}</span></div>
+              <p class="mt-1"><strong>Total:</strong> {{ (order.total ?? order.totalAmount) | currency }}</p>
+            </div>
           </div>
         </div>
 
@@ -40,10 +48,10 @@ import { MatIconModule } from '@angular/material/icon';
           <mat-list-item *ngFor="let it of order.items">
             <div style="width:100%" class="d-flex justify-content-between align-items-center">
               <div>
-                <div><strong>{{ it.productName || ('Product #' + it.productId) }}</strong></div>
-                <div class="text-muted small">Qty: {{ it.quantity }} — Unit: {{ it.unitPrice | currency }}</div>
+                <div><strong>{{ it.product?.title || it.productName || ('Product #' + it.productId) }}</strong></div>
+                <div class="text-muted small">Qty: {{ it.quantity }} — Unit: {{ (it.unitPrice || 0) | currency }}</div>
               </div>
-              <div class="text-end"><strong>{{ (it.quantity * it.unitPrice) | currency }}</strong></div>
+              <div class="text-end"><strong>{{ (it.quantity * (it.unitPrice || 0)) | currency }}</strong></div>
             </div>
           </mat-list-item>
         </mat-list>
@@ -78,6 +86,7 @@ import { MatIconModule } from '@angular/material/icon';
     mat-card-actions { padding: 12px 16px; }
     .order-stepper { margin-top: 12px; }
     .step-content { padding: 8px 0; }
+    .coupon-chip { background:#e3f2fd; color:#0d47a1; border-radius:12px; padding:2px 8px; font-size:.8rem; margin-left:8px; }
     @media (max-width:767px) { .text-md-end { text-align: left !important; } }
   `]
 })

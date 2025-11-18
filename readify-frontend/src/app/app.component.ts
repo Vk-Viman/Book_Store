@@ -26,6 +26,14 @@ import { CartService } from './services/cart.service';
   ],
   templateUrl: './app.component.html',
   styles: [`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh; /* push footer to bottom on short pages */
+    }
+    .app-content {
+      flex: 1 0 auto; /* take remaining space */
+    }
     .spacer {
       flex: 1 1 auto;
     }
@@ -73,6 +81,22 @@ import { CartService } from './services/cart.service';
         font-size: 1.2rem;
       }
     }
+    .app-footer { 
+      background: #3f51b5; 
+      color: #fff;
+      border-top: none; 
+      margin-top: 24px; 
+      padding: 16px 0;
+    }
+    .app-footer .footer-link { 
+      text-decoration: none; 
+      color: inherit; 
+      margin: 0 15px;
+    }
+    .app-footer .footer-link:hover { 
+      text-decoration: underline; 
+      opacity: 0.9;
+    }
   `]
 })
 export class AppComponent implements OnInit {
@@ -84,6 +108,9 @@ export class AppComponent implements OnInit {
   loggedIn$: Observable<boolean> = this.auth.isLoggedIn();
   isAdmin$: Observable<boolean> = this.auth.isAdmin$();
   cartCount$ = this.cart.cartCount$;
+
+  // Expose current year to template (avoid using `new` in template expressions)
+  currentYear: number = new Date().getFullYear();
 
   ngOnInit(): void {
     // refresh cart count when app initializes

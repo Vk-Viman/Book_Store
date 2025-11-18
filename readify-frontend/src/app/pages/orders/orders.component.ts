@@ -19,7 +19,7 @@ import { NotificationService } from '../../services/notification.service';
      mat-card { overflow: visible; padding: 16px; }
      .order-link { text-decoration: none; color: inherit; display: block; padding: 8px 0; }
      .orders-card { max-width: 900px; }
-     /* small screen: present orders as stacked cards */
+     .coupon-badge { background:#e3f2fd; color:#0d47a1; border-radius:12px; padding:2px 8px; font-size:.8rem; margin-left:8px; }
      @media (max-width: 767px) {
        mat-list-item { display: block; }
        .order-link { display: block; padding: 12px; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); margin-bottom: 8px; }
@@ -38,7 +38,7 @@ import { NotificationService } from '../../services/notification.service';
             <a [routerLink]="['/orders', o.id]" class="order-link" attr.aria-label="Open order {{o.id}} details">
               <div style="width:100%" class="d-flex justify-content-between align-items-center">
                 <div>
-                  <div class="order-title">Order #{{ o.id }}</div>
+                  <div class="order-title">Order #{{ o.id }} <span *ngIf="o.promoCode" class="coupon-badge" title="Coupon applied">{{ o.promoCode }}</span></div>
                   <div class="order-meta">{{ o.createdAt | localDate:'medium' }}</div>
                 </div>
                 <div class="text-end">

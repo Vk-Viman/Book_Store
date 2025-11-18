@@ -20,7 +20,8 @@ public class MappingServiceTests
             Category = new Readify.Models.Category { Id = 7, Name = "Cat" },
             Price = 9.99m,
             StockQty = 3,
-            ImageUrl = "http://example.com/img.png"
+            ImageUrl = "http://example.com/img.png",
+            AvgRating = 4.25m
         };
 
         var dto = _mapper.ToBookReadDto(product);
@@ -34,6 +35,7 @@ public class MappingServiceTests
         Assert.Equal(product.Price, dto.Price);
         Assert.Equal(product.StockQty, dto.StockQty);
         Assert.Equal(product.ImageUrl, dto.ImageUrl);
+        Assert.Equal(product.AvgRating, dto.AvgRating);
     }
 
     [Fact]

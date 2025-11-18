@@ -54,7 +54,6 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
-
 // register mock payment service
 builder.Services.AddSingleton<IPaymentService, MockPaymentService>();
 
@@ -96,6 +95,8 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = key
     };
 });
+
+builder.Services.AddScoped<ICouponService, CouponService>();
 
 var app = builder.Build();
 

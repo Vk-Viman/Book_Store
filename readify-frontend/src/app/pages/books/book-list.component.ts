@@ -129,7 +129,7 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
   recommendations: any[] = [];
   trending: any[] = [];
   categories: any[] = [];
-  authors: string[] = [];
+  authors: { name: string; count: number }[] = [];
   q = '';
   page = 1;
   pageSize = 12;
@@ -347,6 +347,21 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
     this.applyFilters();
   }
 
+  private refreshAuthors() {
+    this.bookService.getAuthors({
+      q: this.q || undefined,
+      categoryId: this.selectedCategoryId || undefined,
+      categoryIds: this.selectedCategoryIds.length ? this.selectedCategoryIds : undefined,
+      minPrice: this.minPrice !== 0 ? this.minPrice : undefined,
+      maxPrice: this.maxPrice !== 100 ? this.maxPrice : undefined,
+      minRating: this.minRatingFilter || undefined,
+      inStock: this.inStockOnly || undefined
+    }).subscribe({
+      next: list => { this.authors = (list || []).map(a => ({ name: a.name, count: a.count })); },
+      error: () => { this.authors = []; }
+    });
+  }
+
   applyFilters() {
     const query: any = {
       q: this.q || undefined,
@@ -383,6 +398,10 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
     } else {
       this.router.navigate(['/books'], { queryParams: query });
     }
+
+    // After navigating, also refresh authors list
+    // (global authors list independent of page results)
+    setTimeout(() => this.refreshAuthors(), 0);
   }
 
   load() {
@@ -412,16 +431,14 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
         this.total = res.total || 0;
         this.loading = false;
 
-        // populate authors list from returned page (unique)
-        const auths = new Set<string>();
-        this.products.forEach(p => { if (p.authors) { const parts = (p.authors || '').split(',').map((s:any) => s.trim()).filter((s:any)=>s); parts.forEach((a:any)=>auths.add(a)); } });
-        this.authors = Array.from(auths).slice(0,50);
-
         // ensure recommendations visible: fallback to current page if still empty
         if (!this.recommendations || this.recommendations.length === 0) {
           this.recommendations = this.products.slice(0, Math.min(8, this.products.length));
           console.debug('Recommendations (fallback from products):', this.recommendations);
         }
+
+        // Refresh authors after load (in case initial page load)
+        this.refreshAuthors();
       },
       error: (err) => {
         console.error('Failed to load products', err);
@@ -432,6 +449,9 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
 
         // still attempt to show recommendations from cache if available
         if (!this.recommendations) this.recommendations = [];
+
+        // Refresh authors on error as well
+        this.refreshAuthors();
       }
     });
   }
@@ -441,27 +461,37 @@ export class BookListComponent implements OnDestroy, AfterViewInit {
   }
 
   loadRecommendations() {
-    // Prefer server-side recommendation endpoint which will fallback internally to public/popular
+    const finalizeTrending = () => { this.loadTrending(); };
     this.recSvc.getForMe().subscribe({
       next: (res: any) => {
         this.recommendations = (res?.items || []);
-        console.debug('Recommendations (from /me):', this.recommendations);
-        // If server returned empty, try public endpoint as a safety net
         if (!this.recommendations || this.recommendations.length === 0) {
-          this.recSvc.getPublic().subscribe({ next: (pub: any) => { this.recommendations = (pub?.items || []); console.debug('Recommendations (from public):', this.recommendations); }, error: () => { /* allow product fallback below */ } });
+          // fallback to public recommendations
+            this.recSvc.getPublic().subscribe({
+              next: (pub: any) => { this.recommendations = (pub?.items || []); finalizeTrending(); },
+              error: () => { finalizeTrending(); }
+            });
         } else {
-          this.loadTrending();
+          finalizeTrending();
         }
       },
-      error: (err: any) => {
-        console.warn('Personal recommendations failed; trying public', err);
-        this.recSvc.getPublic().subscribe({ next: (pub: any) => { this.recommendations = (pub?.items || []); console.debug('Recommendations (from public):', this.recommendations); }, error: (e) => { console.warn('Public recommendations failed; falling back to newest books', e); this.bookService.getBooks({ pageSize: 8, sort: 'newest' }).subscribe({ next: (r:any) => { this.recommendations = (r.items || []).map((it:any) => ({ id: it.id, title: it.title, imageUrl: it.imageUrl, price: it.price })); }, error: () => { this.recommendations = []; } }); } });
+      error: (_err: any) => {
+        // user not logged in or error: use public endpoint
+        this.recSvc.getPublic().subscribe({
+          next: (pub: any) => { this.recommendations = (pub?.items || []); finalizeTrending(); },
+          error: () => { // fallback to newest page
+            this.bookService.getBooks({ pageSize: 8, sort: 'newest' }).subscribe({
+              next: (r: any) => { this.recommendations = (r.items || []).map((it: any) => ({ id: it.id, title: it.title, imageUrl: it.imageUrl, price: it.price })); finalizeTrending(); },
+              error: () => { this.recommendations = []; finalizeTrending(); }
+            });
+          }
+        });
       }
     });
   }
 
   private loadTrending() {
-    this.productService.getTrending(16).subscribe({ next: (t: any) => { this.trending = t?.items || []; }, error: () => { this.trending = []; } });
+    this.productService.getTrending(16).subscribe({ next: (t: any) => { this.trending = t?.items || []; console.debug('Trending items loaded:', this.trending); }, error: (err:any) => { console.warn('Trending load failed', err); this.trending = []; } });
   }
 
   private startAutoplay() {

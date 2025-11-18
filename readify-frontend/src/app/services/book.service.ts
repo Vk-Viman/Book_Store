@@ -14,7 +14,6 @@ export class BookService {
       if (options.q) params = params.set('q', options.q);
       if (options.categoryId) params = params.set('categoryId', String(options.categoryId));
       if (options.categoryIds && options.categoryIds.length) {
-        // add repeated params for arrays
         options.categoryIds.forEach(id => { params = params.append('categoryIds', String(id)); });
       }
       if (options.author) params = params.set('author', options.author);
@@ -27,6 +26,22 @@ export class BookService {
       if (options.inStock != null) params = params.set('inStock', options.inStock ? 'true' : 'false');
     }
     return this.http.get(this.base, { params });
+  }
+
+  getAuthors(options?: { q?: string; categoryId?: number; categoryIds?: number[]; minPrice?: number | null; maxPrice?: number | null; minRating?: number | null; inStock?: boolean }): Observable<any[]> {
+    let params = new HttpParams();
+    if (options) {
+      if (options.q) params = params.set('q', options.q);
+      if (options.categoryId) params = params.set('categoryId', String(options.categoryId));
+      if (options.categoryIds && options.categoryIds.length) {
+        options.categoryIds.forEach(id => { params = params.append('categoryIds', String(id)); });
+      }
+      if (options.minPrice != null) params = params.set('minPrice', String(options.minPrice));
+      if (options.maxPrice != null) params = params.set('maxPrice', String(options.maxPrice));
+      if (options.minRating != null) params = params.set('minRating', String(options.minRating));
+      if (options.inStock != null) params = params.set('inStock', options.inStock ? 'true' : 'false');
+    }
+    return this.http.get<any[]>(`${this.base}/authors`, { params });
   }
 
   getBook(id: number): Observable<any> {

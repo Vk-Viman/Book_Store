@@ -7,6 +7,8 @@ using Readify.Data;
 using Readify.Models;
 using Readify.Services;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 
 namespace Readify.Controllers
 {
@@ -21,8 +23,9 @@ namespace Readify.Controllers
         private readonly IEmailService _email;
         private readonly IConfiguration _config;
         private readonly IMemoryCache _cache;
+        private readonly IWebHostEnvironment _env;
 
-        public AdminProductsController(AppDbContext context, ILogger<AdminProductsController> logger, IAuditService audit, IEmailService email, IConfiguration config, IMemoryCache cache)
+        public AdminProductsController(AppDbContext context, ILogger<AdminProductsController> logger, IAuditService audit, IEmailService email, IConfiguration config, IMemoryCache cache, IWebHostEnvironment env)
         {
             _context = context;
             _logger = logger;
@@ -30,6 +33,7 @@ namespace Readify.Controllers
             _email = email;
             _config = config;
             _cache = cache;
+            _env = env;
         }
 
         // POST api/admin/products
@@ -49,7 +53,6 @@ namespace Readify.Controllers
 
             product.CreatedAt = DateTime.UtcNow;
             product.UpdatedAt = DateTime.UtcNow;
-            // set initial stock snapshot
             product.InitialStock = product.StockQty;
             _context.Products.Add(product);
 
@@ -100,9 +103,6 @@ namespace Readify.Controllers
             {
                 return BadRequest(new { message = "Selected category does not exist. Please select or create a category." });
             }
-
-            // track if stock increased from previous
-            var prevStock = product.StockQty;
 
             product.Title = updated.Title;
             product.Description = updated.Description;
@@ -182,9 +182,82 @@ namespace Readify.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _context.Products.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
             if (product == null) return NotFound();
+            if (product.Images != null)
+                product.Images = product.Images.OrderBy(i => i.SortOrder).ToList();
             return Ok(product);
+        }
+
+        // POST /api/admin/products/{id}/images
+        [HttpPost("{id}/images")]
+        public async Task<IActionResult> UploadImages(int id, [FromForm] IFormFile[] files)
+        {
+            var product = await _context.Products.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
+            if (product == null) return NotFound();
+            if (files == null || files.Length == 0) return BadRequest(new { message = "No files uploaded" });
+
+            var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var imagesDir = Path.Combine(webRoot, "images", "products", id.ToString());
+            Directory.CreateDirectory(imagesDir);
+
+            var next = (product.Images?.Count ?? 0);
+            var created = new List<ProductImage>();
+            foreach (var file in files)
+            {
+                if (file.Length <= 0) continue;
+                var ext = Path.GetExtension(file.FileName);
+                var name = $"{Guid.NewGuid():N}{ext}";
+                var path = Path.Combine(imagesDir, name);
+                using (var fs = new FileStream(path, FileMode.Create))
+                {
+                    await file.CopyToAsync(fs);
+                }
+                var relUrl = $"/images/products/{id}/{name}";
+                var img = new ProductImage { ProductId = id, ImageUrl = relUrl, SortOrder = next++ };
+                _context.ProductImages.Add(img);
+                created.Add(img);
+            }
+
+            await _context.SaveChangesAsync();
+            await _audit.WriteAsync("UploadImages", nameof(Product), id);
+            return Ok(new { items = created.Select(i => new { i.Id, i.ImageUrl, i.SortOrder }) });
+        }
+
+        // DELETE /api/admin/products/{productId}/images/{imageId}
+        [HttpDelete("{productId}/images/{imageId}")]
+        public async Task<IActionResult> DeleteImage(int productId, int imageId)
+        {
+            var img = await _context.ProductImages.FirstOrDefaultAsync(i => i.Id == imageId && i.ProductId == productId);
+            if (img == null) return NotFound();
+            _context.ProductImages.Remove(img);
+            await _context.SaveChangesAsync();
+            await _audit.WriteAsync("DeleteImage", nameof(Product), productId);
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(img.ImageUrl) && img.ImageUrl.StartsWith('/'))
+                {
+                    var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                    var full = Path.Combine(webRoot, img.ImageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                    if (System.IO.File.Exists(full)) System.IO.File.Delete(full);
+                }
+            }
+            catch { }
+
+            return NoContent();
+        }
+
+        // PUT /api/admin/products/{productId}/images/{imageId}/sort
+        [HttpPut("{productId}/images/{imageId}/sort")]
+        public async Task<IActionResult> UpdateImageSort(int productId, int imageId, [FromQuery] int order)
+        {
+            var img = await _context.ProductImages.FirstOrDefaultAsync(i => i.Id == imageId && i.ProductId == productId);
+            if (img == null) return NotFound();
+            img.SortOrder = order;
+            await _context.SaveChangesAsync();
+            await _audit.WriteAsync("UpdateImageSort", nameof(Product), productId);
+            return NoContent();
         }
     }
 }

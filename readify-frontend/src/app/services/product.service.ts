@@ -1,13 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { lastValueFrom } from 'rxjs';
-import { Subject } from 'rxjs';
+import { Observable, of, lastValueFrom, Subject } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
-  private base = '/api';
+  // Use full API base from environment so requests go directly to backend (e.g. http://localhost:5005/api)
+  private base = environment.apiUrl || '/api';
   private imageCache = new Map<string, { ok: boolean; message?: string; ts: number }>();
   private cacheTtlMs = 1000 * 60 * 5; // 5 minutes
 
@@ -39,6 +39,27 @@ export class ProductService {
 
   getProduct(id: number): Observable<any> {
     return this.http.get(`${this.base}/products/${id}`);
+  }
+
+  // Admin fetch without ResponseCache; use on admin product form after uploads
+  getAdminProduct(id: number): Observable<any> {
+    return this.http.get(`${this.base}/admin/products/${id}`);
+  }
+
+  // Product images endpoints
+  uploadProductImages(id: number, files: File[]): Observable<any> {
+    const form = new FormData();
+    for (const f of files) form.append('files', f);
+    return this.http.post(`${this.base}/admin/products/${id}/images`, form);
+  }
+
+  deleteProductImage(productId: number, imageId: number): Observable<any> {
+    return this.http.delete(`${this.base}/admin/products/${productId}/images/${imageId}`);
+  }
+
+  updateProductImageSort(productId: number, imageId: number, order: number): Observable<any> {
+    let params = new HttpParams().set('order', String(order));
+    return this.http.put(`${this.base}/admin/products/${productId}/images/${imageId}/sort`, null, { params });
   }
 
   getCategories(): Observable<any> {

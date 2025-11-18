@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Collections.Generic;
 
 namespace Readify.Models
 {
@@ -33,5 +34,8 @@ namespace Readify.Models
         public byte[]? RowVersion { get; set; }
 
         public Category? Category { get; set; }
+
+        // Gallery images
+        public List<ProductImage> Images { get; set; } = new();
     }
 }

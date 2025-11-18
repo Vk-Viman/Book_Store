@@ -13,7 +13,7 @@ namespace Readify.Services
     {
         public BookReadDto ToBookReadDto(Product p)
         {
-            return new BookReadDto(p.Id, p.Title, p.Authors, p.Description, p.CategoryId, p.Category?.Name ?? string.Empty, p.Price, p.StockQty, p.ImageUrl);
+            return new BookReadDto(p.Id, p.Title, p.Authors, p.Description, p.CategoryId, p.Category?.Name ?? string.Empty, p.Price, p.StockQty, p.ImageUrl, p.AvgRating);
         }
 
         public Product FromBookCreateDto(BookCreateDto dto)

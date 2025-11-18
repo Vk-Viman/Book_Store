@@ -35,6 +35,22 @@ import { ActivatedRoute, Router } from '@angular/router';
         <input type="number" step="0.01" class="form-control" [(ngModel)]="model.fixedAmount" name="fixedAmount" />
         <div *ngIf="submitted && (!model.fixedAmount || model.fixedAmount <= 0)" class="text-danger small mt-1">Fixed amount must be greater than 0</div>
       </div>
+      <div class="mb-3">
+        <label class="form-label">Expiry Date (UTC)</label>
+        <input type="date" class="form-control" [(ngModel)]="model.expiryDate" name="expiryDate" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Minimum Purchase</label>
+        <input type="number" step="0.01" class="form-control" [(ngModel)]="model.minPurchase" name="minPurchase" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Global Usage Limit</label>
+        <input type="number" class="form-control" [(ngModel)]="model.globalUsageLimit" name="globalUsageLimit" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Per-User Limit</label>
+        <input type="number" class="form-control" [(ngModel)]="model.perUserLimit" name="perUserLimit" />
+      </div>
       <div class="mb-3 form-check">
         <input type="checkbox" class="form-check-input" id="activeCheck" [(ngModel)]="model.isActive" name="isActive" />
         <label class="form-check-label" for="activeCheck">Active</label>

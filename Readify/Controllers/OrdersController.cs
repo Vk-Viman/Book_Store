@@ -95,46 +95,24 @@ public class OrdersController : ControllerBase
 
             _logger.LogInformation("Computed cart subtotal for user {UserId} is {Subtotal}", userId.Value, subtotal);
 
-            // Apply promo code if provided
-            decimal? discountPercent = null;
-            decimal discountAmount = 0m;
-            bool freeShipping = false;
-            string? appliedType = null;
-
-            if (!string.IsNullOrWhiteSpace(dto?.PromoCode))
+            // Coupon calculation via ICouponService
+            decimal? discountPercent = null; decimal discountAmount = 0m; bool freeShipping = false; string? appliedType = null; string? appliedCode = null;
+            var couponSvc = HttpContext.RequestServices.GetService(typeof(ICouponService)) as ICouponService;
+            if (couponSvc != null && !string.IsNullOrWhiteSpace(dto?.PromoCode))
             {
                 try
                 {
-                    var promo = await _context.PromoCodes.FirstOrDefaultAsync(p => p.Code == dto.PromoCode && p.IsActive);
-                    if (promo != null)
+                    var validation = await couponSvc.ValidateAsync(dto.PromoCode.Trim(), userId.Value, subtotal);
+                    if (validation.IsValid && validation.Promo != null)
                     {
-                        appliedType = promo.Type;
-                        if (string.Equals(promo.Type, "Percentage", StringComparison.OrdinalIgnoreCase))
-                        {
-                            discountPercent = promo.DiscountPercent;
-                            discountAmount = Math.Round((subtotal * (decimal)promo.DiscountPercent) / 100m, 2);
-                        }
-                        else if (string.Equals(promo.Type, "Fixed", StringComparison.OrdinalIgnoreCase))
-                        {
-                            discountAmount = promo.FixedAmount ?? 0m;
-                            discountPercent = null;
-                        }
-                        else if (string.Equals(promo.Type, "FreeShipping", StringComparison.OrdinalIgnoreCase))
-                        {
-                            freeShipping = true;
-                        }
-
-                        _logger.LogInformation("Applied promo code {Code} type {Type} discount amount {Amount}", promo.Code, promo.Type, discountAmount);
+                        appliedType = validation.Promo.Type; appliedCode = validation.Promo.Code;
+                        discountAmount = validation.DiscountAmount; freeShipping = validation.FreeShipping;
+                        if (string.Equals(appliedType, "Percentage", StringComparison.OrdinalIgnoreCase)) discountPercent = validation.Promo.DiscountPercent;
+                        _logger.LogInformation("Coupon {Code} applied: type={Type} discount={Discount} freeShip={Free}", appliedCode, appliedType, discountAmount, freeShipping);
                     }
-                    else
-                    {
-                        _logger.LogInformation("Promo code {Code} not found or inactive", dto.PromoCode);
-                    }
+                    else _logger.LogInformation("Coupon {Code} invalid: {Reason}", dto.PromoCode, validation.Message);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to validate promo code {Code}", dto.PromoCode);
-                }
+                catch (Exception ex) { _logger.LogWarning(ex, "Coupon validation failed for {Code}", dto.PromoCode); }
             }
 
             // server calculates shipping using shipping service; do not trust client-provided shippingCost
@@ -220,23 +198,18 @@ public class OrdersController : ControllerBase
                 var order = new Order
                 {
                     UserId = userId.Value,
-                    OrderDate = DateTime.UtcNow, // ensure stored time is UTC
-                    Items = cartItems.Select(c => new OrderItem
-                    {
-                        ProductId = c.ProductId,
-                        Quantity = c.Quantity,
-                        UnitPrice = c.Product?.Price ?? 0m
-                    }).ToList(),
+                    OrderDate = DateTime.UtcNow,
+                    Items = cartItems.Select(c => new OrderItem { ProductId = c.ProductId, Quantity = c.Quantity, UnitPrice = c.Product?.Price ?? 0m }).ToList(),
+                    OriginalTotal = subtotal,
                     TotalAmount = computedTotal,
                     ShippingName = dto?.ShippingName,
                     ShippingAddress = dto?.ShippingAddress,
                     ShippingPhone = dto?.ShippingPhone,
                     ShippingCost = shippingCost,
-                    PromoCode = string.IsNullOrWhiteSpace(dto?.PromoCode) ? null : dto.PromoCode,
+                    PromoCode = appliedCode,
                     DiscountPercent = discountPercent,
                     DiscountAmount = discountAmount,
                     FreeShipping = freeShipping,
-                    // set payment/order status fields
                     PaymentStatus = paymentSucceeded ? "Paid" : "Pending",
                 };
 
@@ -342,6 +315,12 @@ public class OrdersController : ControllerBase
                         _logger.LogWarning(ex, "Failed to write audit log for order {OrderId}", order.Id);
                     }
 
+                    // Record coupon usage (best-effort)
+                    if (couponSvc != null && !string.IsNullOrWhiteSpace(order.PromoCode))
+                    {
+                        try { await couponSvc.RecordUsageAsync(order.PromoCode, userId.Value); } catch (Exception ex) { _logger.LogWarning(ex, "Failed to record coupon usage for order {OrderId}", order.Id); }
+                    }
+
                     return Ok(savedOrder);
                 }
                 catch (DbUpdateException dbEx)
@@ -415,11 +394,19 @@ public class OrdersController : ControllerBase
             var orders = await _context.Orders
                 .Include(o => o.Items).ThenInclude(i => i.Product)
                 .Where(o => o.UserId == userId.Value)
+                .OrderByDescending(o => o.OrderDate)
                 .ToListAsync();
 
-            // Return OrderDate in UTC; clients should convert to local display time.
+            var dtos = orders.Select(o => new OrderSummaryDto
+            {
+                Id = o.Id,
+                CreatedAt = o.OrderDate,
+                Status = o.OrderStatusString,
+                Total = o.TotalAmount,
+                PromoCode = o.PromoCode
+            }).ToList();
 
-            return Ok(orders);
+            return Ok(dtos);
         }
         catch (Exception ex)
         {
@@ -566,5 +553,27 @@ public class OrdersController : ControllerBase
             _logger.LogError(ex, "GetOrderHistory failed");
             return StatusCode(500, new { message = "Failed to load order history" });
         }
+    }
+
+    // GET api/orders/validate-coupon
+    [HttpGet("validate-coupon")]
+    public async Task<IActionResult> ValidateCoupon([FromQuery] string code, [FromQuery] decimal subtotal)
+    {
+        var userId = await GetUserIdFromClaimsAsync();
+        if (userId == null) return Unauthorized(new { message = "User not authenticated" });
+        var svc = HttpContext.RequestServices.GetService(typeof(ICouponService)) as ICouponService;
+        if (svc == null) return StatusCode(500, new { message = "Coupon service not available" });
+        var res = await svc.ValidateAsync(code, userId.Value, subtotal);
+        if (!res.IsValid) return BadRequest(new { message = res.Message });
+
+        var shippingSvc = HttpContext.RequestServices.GetService(typeof(IShippingService)) as IShippingService;
+        decimal shippingRate = 0m;
+        if (shippingSvc != null)
+        {
+            try { shippingRate = await shippingSvc.GetRateAsync("national", subtotal); } catch { shippingRate = 0m; }
+        }
+        if (res.FreeShipping) shippingRate = 0m;
+        var projectedTotal = Math.Max(0, subtotal + shippingRate - res.DiscountAmount);
+        return Ok(new { code = code.ToUpperInvariant(), type = res.Promo?.Type, discountPercent = res.Promo?.DiscountPercent, fixedAmount = res.Promo?.FixedAmount, freeShipping = res.FreeShipping, discountAmount = res.DiscountAmount, projectedTotal });
     }
 }

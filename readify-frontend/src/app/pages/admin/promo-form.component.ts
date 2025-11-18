@@ -39,6 +39,22 @@ import { Router } from '@angular/router';
         <input type="checkbox" class="form-check-input" id="activeCheck" [(ngModel)]="model.isActive" name="isActive" />
         <label class="form-check-label" for="activeCheck">Active</label>
       </div>
+      <div class="mb-3">
+        <label class="form-label">Expiry Date (UTC)</label>
+        <input type="date" class="form-control" [(ngModel)]="model.expiryDate" name="expiryDate" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Minimum Purchase (optional)</label>
+        <input type="number" step="0.01" class="form-control" [(ngModel)]="model.minPurchase" name="minPurchase" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Global Usage Limit (optional)</label>
+        <input type="number" class="form-control" [(ngModel)]="model.globalUsageLimit" name="globalUsageLimit" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Per-User Limit (optional)</label>
+        <input type="number" class="form-control" [(ngModel)]="model.perUserLimit" name="perUserLimit" />
+      </div>
       <button class="btn btn-primary" [disabled]="!isValid()">Create</button>
     </form>
   </div>

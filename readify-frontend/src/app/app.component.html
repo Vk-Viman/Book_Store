@@ -172,4 +172,19 @@
   </div>
 </mat-toolbar>
 
-<router-outlet></router-outlet>
+<main class="app-content">
+  <router-outlet></router-outlet>
+</main>
+
+<footer class="app-footer py-4">
+  <div class="container d-flex flex-column flex-md-row align-items-center gap-3">
+    <div class="text-muted small">&copy; {{ currentYear }} Readify. All rights reserved.</div>
+    <div class="ms-md-auto d-flex gap-3 small">
+      <a routerLink="/books" class="footer-link">Books</a>
+      <a routerLink="/wishlist" class="footer-link">Wishlist</a>
+      <a routerLink="/cart" class="footer-link">Cart</a>
+      <a routerLink="/orders" *ngIf="(loggedIn$ | async)" class="footer-link">My Orders</a>
+      <a routerLink="/admin/dashboard" *ngIf="(isAdmin$ | async)" class="footer-link">Admin</a>
+    </div>
+  </div>
+</footer>

@@ -15,6 +15,7 @@ export interface OrderSummaryDto {
   createdAt: string; // ISO
   status: string;
   total: number;
+  promoCode?: string; // optional coupon code
 }
 
 export interface OrderDetailDto extends OrderSummaryDto {
@@ -22,6 +23,15 @@ export interface OrderDetailDto extends OrderSummaryDto {
   shippingName?: string;
   shippingAddress?: string;
   shippingPhone?: string;
+  // Optional extended pricing fields returned by server
+  originalTotal?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  shippingCost?: number;
+  freeShipping?: boolean;
+  // Some endpoints may return camelCase server names
+  totalAmount?: number;
+  orderDate?: string;
 }
 
 @Injectable({ providedIn: 'root' })
