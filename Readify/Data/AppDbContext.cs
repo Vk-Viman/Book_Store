@@ -25,6 +25,9 @@ namespace Readify.Data
         public DbSet<Review> Reviews { get; set; }
         public DbSet<PromoCodeUsage> PromoCodeUsages { get; set; }
         public DbSet<ProductImage> ProductImages { get; set; }
+        public DbSet<Supplier> Suppliers { get; set; }
+        public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
+        public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
         // Alias for readability: treat products as books in the app domain
         public DbSet<Product> Books => Products;
 
@@ -51,6 +54,36 @@ namespace Readify.Data
 
             modelBuilder.Entity<ProductImage>()
                 .HasIndex(pi => new { pi.ProductId, pi.SortOrder });
+
+            // Purchase order relations
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasMany(po => po.Items)
+                .WithOne(i => i.PurchaseOrder)
+                .HasForeignKey(i => i.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .HasIndex(i => i.PurchaseOrderId);
+
+            // configure Supplier -> PurchaseOrders relationship and index
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasOne(p => p.Supplier)
+                .WithMany()
+                .HasForeignKey(p => p.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasIndex(p => p.SupplierId);
+
+            // ensure TotalAmount uses decimal(18,2)
+            modelBuilder.Entity<PurchaseOrder>()
+                .Property(p => p.TotalAmount)
+                .HasColumnType("decimal(18,2)");
+
+            // ensure PO item unit price precision
+            modelBuilder.Entity<PurchaseOrderItem>()
+                .Property(i => i.UnitPrice)
+                .HasColumnType("decimal(18,2)");
 
             // Ensure Price uses decimal(18,2) in SQL Server to avoid truncation
             modelBuilder.Entity<Product>()
@@ -156,6 +189,10 @@ namespace Readify.Data
             modelBuilder.Entity<PromoCode>()
                 .Property(p => p.MinPurchase)
                 .HasColumnType("decimal(18,2)");
+
+            // Supplier indexes
+            modelBuilder.Entity<Supplier>()
+                .HasIndex(s => s.Name);
         }
     }
 }

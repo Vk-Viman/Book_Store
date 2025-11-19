@@ -38,5 +38,10 @@ export const routes: Routes = [
   { path: 'admin/shipping', loadComponent: () => import('./pages/admin/shipping-form.component').then(m => m.AdminShippingFormComponent), canActivate: [adminGuard] },
   { path: 'admin/reviews', loadComponent: () => import('./pages/admin/admin-reviews.component').then(m => m.AdminReviewsComponent), canActivate: [adminGuard] },
 
+  // Purchase orders
+  { path: 'admin/purchase-orders', loadComponent: () => import('./pages/admin/purchase-orders/po-list.component').then(m => m.AdminPoListComponent), canActivate: [adminGuard] },
+  { path: 'admin/purchase-orders/new', loadComponent: () => import('./pages/admin/purchase-orders/po-form.component').then(m => m.AdminPoFormComponent), canActivate: [adminGuard] },
+  { path: 'admin/purchase-orders/:id', loadComponent: () => import('./pages/admin/purchase-orders/po-detail.component').then(m => m.AdminPoDetailComponent), canActivate: [adminGuard] },
+
   { path: '**', redirectTo: 'home' }
 ];

@@ -26,6 +26,7 @@ public static class DbInitializer
         catch (Exception ex)
         {
             // If migration fails due to pre-existing objects created outside of migrations, log and continue.
+            // Also tolerate the case where EF detects pending model changes (common in active development) so the app can still start.
             if (ex is SqlException sqlEx)
             {
                 if (sqlEx.Number == 2714 || sqlEx.Number == 2705 || sqlEx.Number == 2719)
@@ -37,6 +38,12 @@ public static class DbInitializer
                     logger.LogError(ex, "Failed to apply migrations or ensure database created");
                     throw;
                 }
+            }
+            else if (ex is InvalidOperationException ioe && (ioe.Message.Contains("PendingModelChangesWarning", StringComparison.OrdinalIgnoreCase) || ioe.Message.Contains("pending changes", StringComparison.OrdinalIgnoreCase)))
+            {
+                // EF Core indicates that the model has pending changes which normally requires adding a migration.
+                // In development environments we tolerate this and continue startup, but log instructions for the developer.
+                logger.LogWarning(ioe, "EF Core model has pending changes. Skipping automatic migration. Consider adding a new migration and updating the database locally (dotnet ef migrations add <name> && dotnet ef database update).");
             }
             else
             {

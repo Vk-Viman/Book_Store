@@ -98,6 +98,11 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddScoped<ICouponService, CouponService>();
 
+// Purchase order service
+builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+// Stock monitoring background service (optional, will run only when configured)
+builder.Services.AddHostedService<StockMonitoringService>();
+
 var app = builder.Build();
 
 // Seed database
