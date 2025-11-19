@@ -1,6 +1,6 @@
 import { Directive, HostListener, ElementRef } from '@angular/core';
 
-@Directive({ selector: '[currencyInput]' })
+@Directive({ selector: '[currencyInput]', standalone: true })
 export class CurrencyInputDirective {
   private el: HTMLInputElement;
   constructor(private elementRef: ElementRef) { this.el = this.elementRef.nativeElement; }

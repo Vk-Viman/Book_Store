@@ -1,13 +1,13 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
-import { ConfirmService } from '../../shared/confirm.service';
+import { Router, RouterModule } from '@angular/router';
+import { ConfirmService } from '../../../shared/confirm.service';
 
 @Component({
   selector: 'app-admin-po-list',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   providers: [ConfirmService],
   template: `
   <div class="container mt-4">

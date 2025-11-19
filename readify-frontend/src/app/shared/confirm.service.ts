@@ -1,3 +1,6 @@
+import { Injectable } from '@angular/core';
+
+@Injectable({ providedIn: 'root' })
 export class ConfirmService {
   // Simple confirm wrapper returning a Promise<boolean> for async usage.
   // This currently uses window.confirm but centralizes calls so it can be replaced by a modal implementation later.

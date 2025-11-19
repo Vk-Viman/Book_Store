@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { ConfirmService } from '../../shared/confirm.service';
+import { ConfirmService } from '../../../shared/confirm.service';
 
 @Component({
   selector: 'app-admin-po-detail',
@@ -84,11 +84,18 @@ export class AdminPoDetailComponent implements OnInit{
   hasReceiveQty(){ if(!this.po) return false; if(!this.canAcceptReceives()) return false; const any = (this.po.items || this.po.Items || []).some((it:any)=> (it._receiveNow || 0) > 0); return any; }
 
   async submitPartialReceive(){
-    if(!this.canAcceptReceives()) return this.confirm.confirm('PO cannot accept receives in its current status', 'Receive PO');
-    if(!(await this.confirm.confirm('Submit partial receive?','Partial Receive'))) return;
+    if(!this.canAcceptReceives()) {
+      await this.confirm.confirm('PO cannot accept receives in its current status', 'Receive PO');
+      return;
+    }
+    const ok = await this.confirm.confirm('Submit partial receive?','Partial Receive');
+    if(!ok) return;
     const id = this.po.id || this.po.Id;
     const items = (this.po.items || this.po.Items || []).map((it:any)=> ({ PurchaseOrderItemId: it.id || it.Id, ReceivedQuantity: Number(it._receiveNow) || 0 })).filter((i:any)=> i.ReceivedQuantity > 0);
-    if(items.length === 0) return this.confirm.confirm('No quantities entered');
-    this.http.post(`/api/admin/purchase-orders/${id}/receive-partial`, items).subscribe({ next: ()=> { this.load(); }, error: ()=> this.confirm.confirm('Failed to submit partial receive').then(()=>{}) });
+    if(items.length === 0) {
+      await this.confirm.confirm('No quantities entered');
+      return;
+    }
+    this.http.post(`/api/admin/purchase-orders/${id}/receive-partial`, items).subscribe({ next: ()=> { this.load(); }, error: ()=> { this.confirm.confirm('Failed to submit partial receive').then(()=>{}); } });
   }
 }

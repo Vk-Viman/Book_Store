@@ -2,15 +2,14 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router, ActivatedRoute } from '@angular/router';
-import { ConfirmService } from '../../shared/confirm.service';
-import { CurrencyInputDirective } from '../../shared/currency-input.directive';
+import { Router, ActivatedRoute, RouterModule } from '@angular/router';
+import { ConfirmService } from '../../../shared/confirm.service';
+import { CurrencyInputDirective } from '../../../shared/currency-input.directive';
 
 @Component({
   selector: 'app-admin-po-form',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  providers: [ConfirmService, CurrencyInputDirective],
+  imports: [CommonModule, FormsModule, CurrencyInputDirective, RouterModule],
   template: `
   <div class="container mt-4">
     <h3>Create Purchase Order</h3>
