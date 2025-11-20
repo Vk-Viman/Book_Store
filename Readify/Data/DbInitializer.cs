@@ -9,7 +9,7 @@ public static class DbInitializer
 {
     public static async Task InitializeAsync(AppDbContext context, IConfiguration config, ILogger logger, IWebHostEnvironment env)
     {
-        // In Development use migrations to keep DB schema in sync with model changes.
+        // Apply EF migrations at startup. This project uses migrations to manage schema.
         try
         {
             if (env.IsDevelopment())
@@ -25,8 +25,6 @@ public static class DbInitializer
         }
         catch (Exception ex)
         {
-            // If migration fails due to pre-existing objects created outside of migrations, log and continue.
-            // Also tolerate the case where EF detects pending model changes (common in active development) so the app can still start.
             if (ex is SqlException sqlEx)
             {
                 if (sqlEx.Number == 2714 || sqlEx.Number == 2705 || sqlEx.Number == 2719)
@@ -41,8 +39,6 @@ public static class DbInitializer
             }
             else if (ex is InvalidOperationException ioe && (ioe.Message.Contains("PendingModelChangesWarning", StringComparison.OrdinalIgnoreCase) || ioe.Message.Contains("pending changes", StringComparison.OrdinalIgnoreCase)))
             {
-                // EF Core indicates that the model has pending changes which normally requires adding a migration.
-                // In development environments we tolerate this and continue startup, but log instructions for the developer.
                 logger.LogWarning(ioe, "EF Core model has pending changes. Skipping automatic migration. Consider adding a new migration and updating the database locally (dotnet ef migrations add <name> && dotnet ef database update).");
             }
             else
@@ -52,59 +48,10 @@ public static class DbInitializer
             }
         }
 
-        // Ensure Orders table has added columns (UpdatedAt, DateDelivered) if new fields were introduced in models
-        try
-        {
-            var ensureOrdersColsSql = @"IF OBJECT_ID(N'[dbo].[Orders]', N'U') IS NOT NULL
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='UpdatedAt')
-    BEGIN
-        ALTER TABLE [dbo].[Orders] ADD [UpdatedAt] datetime2 NULL;
-    END
-    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Orders' AND COLUMN_NAME='DateDelivered')
-    BEGIN
-        ALTER TABLE [dbo].[Orders] ADD [DateDelivered] datetime2 NULL;
-    END
-END";
-            await context.Database.ExecuteSqlRawAsync(ensureOrdersColsSql);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to ensure Orders table columns (UpdatedAt/DateDelivered). This is safe to ignore if DB schema already matches.");
-        }
-
-        // Ensure Products table has InitialStock column (add if missing)
-        try
-        {
-            var ensureInitialStockSql = @"-- Add InitialStock column if missing on Product or Products table (idempotent)
-IF OBJECT_ID(N'[dbo].[Product]', N'U') IS NOT NULL
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Product' AND COLUMN_NAME='InitialStock')
-    BEGIN
-        ALTER TABLE [dbo].[Product] ADD [InitialStock] int NOT NULL DEFAULT 0;
-    END
-END
-
-IF OBJECT_ID(N'[dbo].[Products]', N'U') IS NOT NULL
-BEGIN
-    IF NOT EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Products' AND COLUMN_NAME='InitialStock')
-    BEGIN
-        ALTER TABLE [dbo].[Products] ADD [InitialStock] int NOT NULL DEFAULT 0;
-    END
-END";
-            await context.Database.ExecuteSqlRawAsync(ensureInitialStockSql);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to ensure Products table InitialStock column. This is safe to ignore if DB schema already matches.");
-        }
-
-        // NOTE: Suppliers and PurchaseOrders tables are created via EF migrations.
-        // The application no longer creates these tables at runtime. If you see errors about missing tables,
-        // run the EF migrations locally and on your target database:
-        //   dotnet ef migrations add <name>
+        // NOTE: Schema creation and modifications are handled exclusively via EF migrations.
+        // If your environment is missing tables or columns, apply migrations or run the provided SQL script:
         //   dotnet ef database update
-        // Or apply the generated SQL script `Readify/Migrations/phase14.sql` to your database.
+        //   -- or apply the SQL in Readify/Migrations/phase14.sql (if you exported it for deployment)
 
         // Seed demo users and sample data for local/offline mode
         try
@@ -124,27 +71,23 @@ END";
             }
 
             // Seed demo users
-            // Support multiple admin emails used by tests and demo
             var demoPassword = config["Seed:AdminPassword"] ?? "Readify#Demo123!";
-            var testAdminPassword = "Readify#Admin123!"; // used by integration tests & Cypress
+            var testAdminPassword = "Readify#Admin123!";
 
             var demoAdminEmail = config["Seed:AdminEmail"] ?? "admin@demo.com";
             var demoUserEmail = config["Seed:UserEmail"] ?? "user@demo.com";
 
-            // Ensure demo admin
             if (!await context.Users.AnyAsync(u => u.Email == demoAdminEmail))
             {
                 context.Users.Add(new User { FullName = "Demo Admin", Email = demoAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword), IsActive = true });
             }
 
-            // Ensure test/admin local user with known test password
             var localAdminEmail = "admin@readify.local";
             if (!await context.Users.AnyAsync(u => u.Email == localAdminEmail))
             {
                 context.Users.Add(new User { FullName = "Local Admin", Email = localAdminEmail, Role = "Admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword(testAdminPassword), IsActive = true });
             }
 
-            // Ensure demo user
             if (!await context.Users.AnyAsync(u => u.Email == demoUserEmail))
             {
                 context.Users.Add(new User { FullName = "Demo User", Email = demoUserEmail, Role = "User", PasswordHash = BCrypt.Net.BCrypt.HashPassword(demoPassword), IsActive = true });
@@ -169,13 +112,12 @@ END";
             // Seed default shipping settings if none
             try
             {
-                // Attempt to query ShippingSettings; if the table is missing, create it via SQL then insert default
                 var exists = false;
                 try
                 {
                     exists = await context.ShippingSettings.AnyAsync();
                 }
-                catch (SqlException sex) when (sex.Number == 208) // Invalid object name
+                catch (SqlException sex) when (sex.Number == 208)
                 {
                     logger.LogWarning(sex, "ShippingSettings table not found. Creating it as part of initialization.");
                     var createSql = @"
