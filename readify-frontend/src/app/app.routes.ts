@@ -32,6 +32,13 @@ export const routes: Routes = [
   { path: 'admin/products', loadComponent: () => import('./pages/admin/product-list.component').then(m => m.AdminProductListComponent), canActivate: [adminGuard] },
   { path: 'admin/products/new', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [adminGuard] },
   { path: 'admin/products/:id', loadComponent: () => import('./pages/admin/product-form.component').then(m => m.AdminProductFormComponent), canActivate: [adminGuard] },
+
+  // Suppliers (Phase 14)
+  { path: 'admin/suppliers', loadComponent: () => import('./pages/admin/suppliers/supplier-list.component').then(m => m.AdminSupplierListComponent), canActivate: [adminGuard] },
+  { path: 'admin/suppliers/new', loadComponent: () => import('./pages/admin/suppliers/supplier-form.component').then(m => m.AdminSupplierFormComponent), canActivate: [adminGuard] },
+  { path: 'admin/suppliers/:id', loadComponent: () => import('./pages/admin/suppliers/supplier-form.component').then(m => m.AdminSupplierFormComponent), canActivate: [adminGuard] },
+
+  // Promos
   { path: 'admin/promos', loadComponent: () => import('./pages/admin/promo-list.component').then(m => m.AdminPromoListComponent), canActivate: [adminGuard] },
   { path: 'admin/promos/new', loadComponent: () => import('./pages/admin/promo-form.component').then(m => m.AdminPromoFormComponent), canActivate: [adminGuard] },
   { path: 'admin/promos/:id', loadComponent: () => import('./pages/admin/promo-edit.component').then(m => m.AdminPromoEditComponent), canActivate: [adminGuard] },

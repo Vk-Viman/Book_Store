@@ -99,6 +99,70 @@ END";
             logger.LogWarning(ex, "Failed to ensure Products table InitialStock column. This is safe to ignore if DB schema already matches.");
         }
 
+        // Ensure Suppliers table exists (idempotent) - added to support environments where EF migrations were not applied
+        try
+        {
+            var ensureSuppliersSql = @"IF OBJECT_ID(N'[dbo].[Suppliers]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [Suppliers](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [Name] nvarchar(max) NOT NULL,
+        [Email] nvarchar(max) NOT NULL,
+        [Phone] nvarchar(max) NOT NULL,
+        [Address] nvarchar(max) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAt] datetime2 NOT NULL,
+        [UpdatedAt] datetime2 NULL
+    );
+    CREATE INDEX IX_Suppliers_Name ON Suppliers(Name);
+END";
+            await context.Database.ExecuteSqlRawAsync(ensureSuppliersSql);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to ensure Suppliers table exists. This is safe to ignore if DB schema already matches.");
+        }
+
+        // Ensure PurchaseOrders and PurchaseOrderItems tables exist (idempotent)
+        try
+        {
+            var ensurePurchaseOrdersSql = @"IF OBJECT_ID(N'[dbo].[PurchaseOrders]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [PurchaseOrders](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [SupplierId] int NOT NULL,
+        [OrderDate] datetime2 NOT NULL,
+        [Status] nvarchar(max) NOT NULL,
+        [ReceivedAt] datetime2 NULL,
+        [ReceivedByUserId] int NULL,
+        [CreatedAt] datetime2 NOT NULL,
+        [UpdatedAt] datetime2 NULL,
+        [TotalAmount] decimal(18,2) NOT NULL
+    );
+    CREATE INDEX IX_PurchaseOrders_SupplierId ON PurchaseOrders(SupplierId);
+END";
+            await context.Database.ExecuteSqlRawAsync(ensurePurchaseOrdersSql);
+
+            var ensurePoiSql = @"IF OBJECT_ID(N'[dbo].[PurchaseOrderItems]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [PurchaseOrderItems](
+        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [PurchaseOrderId] int NOT NULL,
+        [ProductId] int NOT NULL,
+        [Quantity] int NOT NULL,
+        [UnitPrice] decimal(18,2) NOT NULL,
+        [ReceivedQuantity] int NOT NULL
+    );
+    CREATE INDEX IX_PurchaseOrderItems_PurchaseOrderId ON PurchaseOrderItems(PurchaseOrderId);
+    CREATE INDEX IX_PurchaseOrderItems_ProductId ON PurchaseOrderItems(ProductId);
+END";
+            await context.Database.ExecuteSqlRawAsync(ensurePoiSql);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to ensure PurchaseOrders or PurchaseOrderItems tables exist. This is safe to ignore if DB schema already matches.");
+        }
+
         // Seed demo users and sample data for local/offline mode
         try
         {
